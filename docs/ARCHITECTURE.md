@@ -1,5 +1,7 @@
 # VSR - Video Subtitle Remover 技术架构文档
 
+[English](ARCHITECTURE_EN.md) | 简体中文
+
 ## 1. 项目概述
 
 **VSR (Video Subtitle Remover)** 是一款基于 AI 的视频硬字幕去除工具，支持 GPU 加速，

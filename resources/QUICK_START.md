@@ -1,5 +1,7 @@
 # VSR 一键使用指南
 
+[English](QUICK_START_EN.md) | 简体中文
+
 > Video Subtitle Remover — 视频硬字幕/水印去除工具
 
 ## 📥 第一步：下载

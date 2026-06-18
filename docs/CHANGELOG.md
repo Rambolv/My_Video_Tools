@@ -1,4 +1,6 @@
-# 变更日志 (Changelog)
+# 变更日志
+
+[English](CHANGELOG_EN.md) | 简体中文
 
 ## v1.4.0 (当前版本)
 

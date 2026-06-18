@@ -4,6 +4,8 @@
 ![PySide6](https://img.shields.io/badge/PySide6-6.9.0-green)
 ![License](https://img.shields.io/badge/License-Apache%202-red)
 
+[English](README_en.md) | 简体中文
+
 > **基于 AI 的视频硬字幕去除工具** — 支持 GPU 加速，提供图形化界面和命令行两种使用方式。
 
 ---
