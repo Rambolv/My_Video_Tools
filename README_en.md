@@ -39,17 +39,48 @@ This project is a deep fork of [**YaoFANGUK/video-subtitle-remover**](https://gi
 
 ### New / Improved Features in This Fork
 
-- **Processing Depth Slider**: 0-100 continuous adjustment, real-time interpolation of all model parameters
-- **Subtitle Extraction**: Full pipeline OCR extraction via PaddleOCR, supports row/column/float modes
-- **Joint Proofreading**: Three different OCR models extract and combine results for best accuracy
-- **VRAM Monitoring**: Passive collection of real GPU memory data with smart red-flag warnings
-- **Collapsible Function UI**: qfluentwidgets redesign with persistent collapse state
-- **Help Button System**: `?` button next to every control, click/hover for detailed explanation
+#### 🚀 Core Algorithm Enhancements
+- **6 Inpainting Engines**: STTN-Auto / STTN-Det / ProPainter / E2FGVI / LaMa / OpenCV, fully integrated
+- **8 Detection Models**: PP-OCRv4 Server/Mobile, PP-OCRv5 Server/Mobile, SAM2-Tiny/Small/Base/Large
+- **Processing Depth Slider**: 0-100 continuous adjustment, real-time interpolation of ALL model parameters (mask dilation, timeline, reference frames, etc.)
+- **Multi-Sweep Mode**: Targeted at AI-generated rapidly changing/deforming logo watermarks — deformation-adaptive mask + RGB clustering + multi-pass progressive removal
+- **Watermark Template Matching**: Template capture, rotation/scale matching, feature matching, color propagation, power sweep (temporal difference), force region inpaint
+- **E2FGVI High-Quality Inpainting**: CVPR 2022 flow-guided video inpainting, supports arbitrary resolution (HQ), requires 48GB+ VRAM
+
+#### 📝 Subtitle Extraction System
+- **Full Pipeline Subtitle Extraction**: Automated PaddleOCR-based extraction
+- **Three Extraction Modes**: Row mode / Column mode / Floating subtitle mode
+- **Joint Proofreading**: Three different OCR models extract separately, then merge and deduplicate for best accuracy
+- **Multi-Format Export**: Plain text (.txt) / Standard subtitle (.srt)
+
+#### 🖥️ Complete UI/UX Overhaul
+- **GUI Framework Upgrade**: Migrated from PySimpleGUI to PySide6 + qfluentwidgets (Fluent Design)
 - **Draggable Splitter Panels**: QSplitter implementation, all areas freely resizable
-- **VRAM Reference Table**: Built-in VRAM baselines for 14 models + OOM danger markers
+- **Collapsible Function Cards**: Persistent collapse state (saved to config.json)
+- **Help Button System**: `?` button next to every control, click for detailed popup, hover for tooltip
+- **Processing Depth Visualization**: Slider displays real-time interpolated parameters for all models
+- **Startup Dialog**: Project info, hardware requirements & recommendations, donation QR code
+- **Window Position Memory**: Auto-save/restore window position and size
+
+#### 🧠 Smart VRAM Management
+- **VRAM Passive Monitoring**: Auto-collects GPU memory peaks during normal workflow
+- **VRAM Estimation Reference Table**: Built-in baselines for 14 models, real collected values preferred
+- **Concurrent Task VRAM Red-Flag**: Concurrency options exceeding VRAM auto-marked with red ⚠️
 - **E2FGVI VRAM Warning**: Auto red alert when GPU VRAM < 48GB
-- **Concurrent Task Red-Flag**: Options exceeding VRAM capacity auto-marked with red ⚠️
-- **Auto Word Wrap & Adaptive Buttons**: Text overflow auto-wraps, buttons self-adapt to size
+- **Color-Coded System**: ≥95% red / ≥85% orange / ≥70% yellow / <70% green
+
+#### 🔧 Technical Architecture
+- **Scene Detection**: Frame-difference based scene cut detection for optimal interval grouping
+- **Hardware Acceleration Layer**: Unified CUDA / ONNX acceleration interface
+- **FFmpeg CLI Wrapper**: Video codec, audio merge, format conversion
+- **Process Manager**: Unified child process lifecycle management (multiprocessing)
+- **Thread-Safe UI Updates**: Signal-slot mechanism replacing direct cross-thread calls
+- **Split Model Auto-Merge**: Large model files stored split, auto-merged on first run (fsplit)
+- **Advanced Settings Page**: Fine-grained parameter tuning for detection/STTN/ProPainter
+- **Version Update Service**: Auto-check for new GitHub releases
+- **Multi-Language Support**: 简体中文 / English / 日本語 / 한국어 / Tiếng Việt / Español
+- **Theme Switching**: Light/Dark theme toggle
+- **Auto Model Download**: AI models (~700MB) auto-download from GitHub Releases on first launch
 
 ---
 
