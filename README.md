@@ -1,4 +1,4 @@
-# VSR - Video Subtitle Remover (视频字幕去除器)
+# VSR魔改版 - Video Subtitle Remover
 
 ![Python](https://img.shields.io/badge/Python-3.12+-blue)
 ![PySide6](https://img.shields.io/badge/PySide6-6.9.0-green)
@@ -6,7 +6,8 @@
 
 [English](README_en.md) | 简体中文
 
-> **基于 AI 的视频硬字幕去除工具** — 支持 GPU 加速，提供图形化界面和命令行两种使用方式。
+> **VSR魔改版** — 基于原版 VSR v1.1.0 深度二次开发，在原项目基础上进行了大量功能增强和 UI 重构。
+> 支持 GPU 加速，提供图形化界面和命令行两种使用方式。
 
 ---
 
@@ -88,18 +89,15 @@
 
 ## 🚀 快速开始
 
-### Windows 预构建包
+### 📦 最小化安装包（推荐）
 
-从原项目 Releases 下载对应版本：
+从 [Releases](https://github.com/Rambolv/My_Video_Tools/releases) 下载 `VSR-Minimal-v1.4.0-windows.7z`
 
-| 包名 | 环境 | 适用 GPU |
-|------|------|---------|
-| `vsr-windows-cuda-12.6.7z` | CUDA 12.6 | NVIDIA 5.0-8.9 算力 |
-| `vsr-windows-cuda-11.8.7z` | CUDA 11.8 | NVIDIA 3.5-8.9 算力 |
-| `vsr-windows-directml.7z` | DirectML | 非 NVIDIA 显卡 |
-| `vsr-windows-cpu.7z` | CPU | 通用 |
-
-### 运行
+| 特点 | 说明 |
+|------|------|
+| 🚀 **体积小巧** | 不含 AI 模型文件，仅含运行环境 + 源码 |
+| 📥 **自动下载** | 首次启动自动检测并下载缺失的 AI 模型（~700MB） |
+| 🎯 **开箱即用** | 解压 → 双击运行 → 自动下载模型 → 开始使用 |
 
 ```bash
 # 解压后双击运行
@@ -199,7 +197,8 @@ resources/
 ## ❓ 常见问题
 
 **Q: 提示"无法找到模型文件"？**
-A: 模型文件被分片存储，首次运行会自动合并。确保有足够的磁盘空间。
+A: 首次运行会自动从 GitHub Releases 下载 AI 模型（~700MB），请确保网络连接正常并有足够磁盘空间。
+   如果自动下载失败，可手动从 [Releases](https://github.com/Rambolv/My_Video_Tools/releases/tag/models-v1.0) 下载模型包。
 
 **Q: GPU 显存不足怎么办？**
 A: 降低"处理深度"滑块、减少并发任务数、选择轻量模型（PP-OCRv4 Mobile + STTN）。

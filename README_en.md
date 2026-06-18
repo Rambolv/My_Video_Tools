@@ -1,4 +1,4 @@
-# VSR - Video Subtitle Remover
+# VSR Modded Edition - Video Subtitle Remover
 
 ![Python](https://img.shields.io/badge/Python-3.12+-blue)
 ![PySide6](https://img.shields.io/badge/PySide6-6.9.0-green)
@@ -6,7 +6,8 @@
 
 [简体中文](README.md) | English
 
-> **AI-powered hard-coded subtitle removal tool** — GPU-accelerated with both GUI and CLI interfaces.
+> **VSR Modded Edition** — A deep fork of VSR v1.1.0 with extensive feature enhancements and UI refactoring.
+> GPU-accelerated hard-coded subtitle removal tool with both GUI and CLI interfaces.
 
 ---
 
@@ -87,18 +88,15 @@ This project is a deep fork of [**YaoFANGUK/video-subtitle-remover**](https://gi
 
 ## 🚀 Quick Start
 
-### Windows Pre-built Packages
+### 📦 Minimal Package (Recommended)
 
-Download the appropriate version from the Releases page:
+Download `VSR-Minimal-v1.4.0-windows.7z` from [Releases](https://github.com/Rambolv/My_Video_Tools/releases)
 
-| Package | Environment | Compatible GPU |
-|---------|-------------|----------------|
-| `vsr-windows-cuda-12.6.7z` | CUDA 12.6 | NVIDIA Compute 5.0-8.9 |
-| `vsr-windows-cuda-11.8.7z` | CUDA 11.8 | NVIDIA Compute 3.5-8.9 |
-| `vsr-windows-directml.7z` | DirectML | Non-NVIDIA GPUs |
-| `vsr-windows-cpu.7z` | CPU | Universal |
-
-### Run
+| Feature | Description |
+|---------|-------------|
+| 🚀 **Lightweight** | No AI models bundled — only runtime + source code |
+| 📥 **Auto-Download** | Models (~700MB) download automatically on first launch |
+| 🎯 **Ready to Use** | Extract → Run → Auto-download models → Start using |
 
 ```bash
 # Extract and double-click
@@ -198,7 +196,9 @@ resources/
 ## ❓ FAQ
 
 **Q: "Model file not found" error?**
-A: Model files are stored in split format. They will auto-merge on first run. Ensure sufficient disk space.
+A: AI models (~700MB) will auto-download from GitHub Releases on first launch.
+   Ensure network connectivity and sufficient disk space.
+   If auto-download fails, manually download from [Releases](https://github.com/Rambolv/My_Video_Tools/releases/tag/models-v1.0).
 
 **Q: GPU VRAM insufficient?**
 A: Lower the "Processing Depth" slider, reduce concurrent tasks, or choose lightweight models (PP-OCRv4 Mobile + STTN).

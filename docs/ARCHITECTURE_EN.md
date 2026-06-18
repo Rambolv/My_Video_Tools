@@ -1,4 +1,4 @@
-# VSR - Video Subtitle Remover Architecture
+# VSR Modded Edition - Architecture
 
 [简体中文](ARCHITECTURE.md) | English
 

@@ -1,8 +1,8 @@
-# VSR 一键使用指南
+# VSR魔改版 一键使用指南
 
 [English](QUICK_START_EN.md) | 简体中文
 
-> Video Subtitle Remover — 视频硬字幕/水印去除工具
+> VSR魔改版 — 基于 AI 的视频硬字幕/水印去除工具
 
 ## 📥 第一步：下载
 

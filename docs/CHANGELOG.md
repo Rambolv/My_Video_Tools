@@ -1,4 +1,4 @@
-# 变更日志
+# VSR魔改版 变更日志
 
 [English](CHANGELOG_EN.md) | 简体中文
 

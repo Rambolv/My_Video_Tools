@@ -1,4 +1,4 @@
-# VSR - Video Subtitle Remover 技术架构文档
+# VSR魔改版 - 技术架构文档
 
 [English](ARCHITECTURE_EN.md) | 简体中文
 

@@ -1,4 +1,4 @@
-# VSR Feature Design Document
+# VSR Modded Edition - Feature Design
 
 [简体中文](FEATURES.md) | English
 

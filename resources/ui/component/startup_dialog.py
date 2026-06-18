@@ -49,7 +49,7 @@ class StartupDialog(QtWidgets.QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle(f"关于 VSR v{VERSION}")
+        self.setWindowTitle(f"关于 VSR魔改版 v{VERSION}")
         self.setFixedSize(540, 640)
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
         self.setStyleSheet("""
@@ -62,7 +62,7 @@ class StartupDialog(QtWidgets.QDialog):
         layout.setContentsMargins(24, 20, 24, 20)
 
         # ── 标题 ──
-        title = StrongBodyLabel(f"VSR - Video Subtitle Remover v{VERSION}")
+        title = StrongBodyLabel(f"VSR魔改版 - Video Subtitle Remover v{VERSION}")
         title.setStyleSheet("font-size: 18px; font-weight: bold; color: #ffd700;")
         title.setAlignment(Qt.AlignCenter)
         layout.addWidget(title)

@@ -1,8 +1,8 @@
-# VSR Quick Start Guide
+# VSR Modded Edition - Quick Start Guide
 
 [简体中文](QUICK_START.md) | English
 
-> Video Subtitle Remover — AI-powered hard subtitle & watermark removal tool
+> VSR Modded Edition — AI-powered hard subtitle & watermark removal tool
 
 ## 📥 Step 1: Download
 

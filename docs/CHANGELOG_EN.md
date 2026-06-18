@@ -1,4 +1,4 @@
-# Changelog
+# VSR Modded Edition - Changelog
 
 [简体中文](CHANGELOG.md) | English
 
