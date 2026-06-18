@@ -81,6 +81,7 @@
 - **多语言界面支持**：简体中文 / English / 日本語 / 한국어 / Tiếng Việt / Español
 - **主题切换**：亮色/暗色主题一键切换
 - **模型自动下载**：首次启动自动从 GitHub Releases 下载 AI 模型（~700MB）
+- **一键安装脚本**：`setup_windows.ps1` 自动完成 Python 环境 + 依赖 + 模型全流程配置
 
 ---
 
@@ -119,26 +120,29 @@
 
 ## 🚀 快速开始
 
-### 📦 最小化安装包（推荐）
+### 📦 源码安装包（推荐，仅 0.3MB）
 
-从 [Releases](https://github.com/Rambolv/My_Video_Tools/releases) 下载 `VSR-Minimal-v1.4.0-windows.7z`
+从 [Releases](https://github.com/Rambolv/My_Video_Tools/releases) 下载 `VSR-Source-v1.4.0.7z`
 
 | 特点 | 说明 |
 |------|------|
-| 🚀 **体积小巧** | 不含 AI 模型文件，仅含运行环境 + 源码 |
-| 📥 **自动下载** | 首次启动自动检测并下载缺失的 AI 模型（~700MB） |
-| 🎯 **开箱即用** | 解压 → 双击运行 → 自动下载模型 → 开始使用 |
+| 🚀 **超小体积** | 仅 0.3MB，仅含 Python 源码 |
+| 🔧 **一键安装** | 运行 setup_windows.ps1 自动完成全部配置 |
+| 📥 **自动下载** | Python 环境 + pip 依赖 + AI 模型（~700MB）全自动下载 |
+| 🎯 **开箱即用** | 安装完成后双击「启动VSR魔改版.cmd」即可使用 |
 
-```bash
-# 解压后双击运行
-使用兼容模式运行.cmd
+**安装步骤：**
 
-# 或直接命令行
-cd resources
-../Python/python.exe gui.py
+```powershell
+# 1. 解压下载的 .7z 文件
+# 2. 右键 scripts/setup_windows.ps1 → 「使用 PowerShell 运行」
+# 3. 等待安装完成（Python 环境 + 依赖包 + AI 模型自动下载）
+# 4. 双击「启动VSR魔改版.cmd」开始使用
 ```
 
-### 从源码运行
+### 从源码手动运行
+
+适用于已经有 Python 3.12+ 环境的用户：
 
 ```bash
 # 1. 创建虚拟环境
@@ -227,8 +231,9 @@ resources/
 ## ❓ 常见问题
 
 **Q: 提示"无法找到模型文件"？**
-A: 首次运行会自动从 GitHub Releases 下载 AI 模型（~700MB），请确保网络连接正常并有足够磁盘空间。
-   如果自动下载失败，可手动从 [Releases](https://github.com/Rambolv/My_Video_Tools/releases/tag/models-v1.0) 下载模型包。
+A: 如果是源码安装包，请先运行 `scripts/setup_windows.ps1` 完成全部安装。
+   首次运行会自动从 GitHub Releases 下载 AI 模型（~700MB），请确保网络连接正常并有足够磁盘空间。
+   如果自动下载失败，可手动运行 `python scripts/download_models.py` 重试下载。
 
 **Q: GPU 显存不足怎么办？**
 A: 降低"处理深度"滑块、减少并发任务数、选择轻量模型（PP-OCRv4 Mobile + STTN）。

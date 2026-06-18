@@ -81,6 +81,7 @@ This project is a deep fork of [**YaoFANGUK/video-subtitle-remover**](https://gi
 - **Multi-Language Support**: 简体中文 / English / 日本語 / 한국어 / Tiếng Việt / Español
 - **Theme Switching**: Light/Dark theme toggle
 - **Auto Model Download**: AI models (~700MB) auto-download from GitHub Releases on first launch
+- **One-Click Setup**: `setup_windows.ps1` handles Python runtime + dependencies + models automatically
 
 ---
 
@@ -119,26 +120,29 @@ This project is a deep fork of [**YaoFANGUK/video-subtitle-remover**](https://gi
 
 ## 🚀 Quick Start
 
-### 📦 Minimal Package (Recommended)
+### 📦 Source Package (Recommended, only 0.3MB)
 
-Download `VSR-Minimal-v1.4.0-windows.7z` from [Releases](https://github.com/Rambolv/My_Video_Tools/releases)
+Download `VSR-Source-v1.4.0.7z` from [Releases](https://github.com/Rambolv/My_Video_Tools/releases)
 
 | Feature | Description |
 |---------|-------------|
-| 🚀 **Lightweight** | No AI models bundled — only runtime + source code |
-| 📥 **Auto-Download** | Models (~700MB) download automatically on first launch |
-| 🎯 **Ready to Use** | Extract → Run → Auto-download models → Start using |
+| 🚀 **Ultra Light** | Only 0.3MB — pure Python source code |
+| 🔧 **One-Click Setup** | Run `setup_windows.ps1` to configure everything automatically |
+| 📥 **Auto-Download** | Python runtime + pip dependencies + AI models (~700MB) all auto-downloaded |
+| 🎯 **Ready to Use** | After setup, double-click `启动VSR魔改版.cmd` to start |
 
-```bash
-# Extract and double-click
-使用兼容模式运行.cmd
+**Installation Steps:**
 
-# Or via command line
-cd resources
-../Python/python.exe gui.py
+```powershell
+# 1. Extract the downloaded .7z file
+# 2. Right-click scripts/setup_windows.ps1 → "Run with PowerShell"
+# 3. Wait for setup to complete (auto-downloads Python + deps + models)
+# 4. Double-click 「启动VSR魔改版.cmd」to launch
 ```
 
-### Run from Source
+### Run from Source (Manual)
+
+For users who already have Python 3.12+:
 
 ```bash
 # 1. Create virtual environment
@@ -227,9 +231,10 @@ resources/
 ## ❓ FAQ
 
 **Q: "Model file not found" error?**
-A: AI models (~700MB) will auto-download from GitHub Releases on first launch.
+A: If using the source package, run `scripts/setup_windows.ps1` first to complete installation.
+   AI models (~700MB) will auto-download from GitHub Releases on first launch.
    Ensure network connectivity and sufficient disk space.
-   If auto-download fails, manually download from [Releases](https://github.com/Rambolv/My_Video_Tools/releases/tag/models-v1.0).
+   If auto-download fails, manually run `python scripts/download_models.py` to retry.
 
 **Q: GPU VRAM insufficient?**
 A: Lower the "Processing Depth" slider, reduce concurrent tasks, or choose lightweight models (PP-OCRv4 Mobile + STTN).
