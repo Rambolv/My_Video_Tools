@@ -1,4 +1,4 @@
-# VSR魔改版 - Video Subtitle Remover
+# VSR魔改版 - Video Subtitle Remover  <!-- LVBOBO_markdown_BUG -->
 
 ![Python](https://img.shields.io/badge/Python-3.12+-blue)
 ![PySide6](https://img.shields.io/badge/PySide6-6.9.0-green)

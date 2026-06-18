@@ -11,6 +11,7 @@ from qfluentwidgets import (CardWidget, BodyLabel, StrongBodyLabel,
 from backend.config import config, tr, VERSION, BASE_DIR
 
 
+# LVBOBO_markdown_BUG - 合规清理：保留捐赠二维码功能
 def _load_qr_pixmap(size=160) -> QtGui.QPixmap:
     """加载捐赠二维码，尝试多个路径"""
     candidates = [
@@ -49,7 +50,7 @@ class StartupDialog(QtWidgets.QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle(f"关于 VSR魔改版 v{VERSION}")
+        self.setWindowTitle(f"关于 VSR魔改版 v{VERSION}")  # LVBOBO_markdown_BUG
         self.setFixedSize(540, 640)
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
         self.setStyleSheet("""
@@ -62,7 +63,7 @@ class StartupDialog(QtWidgets.QDialog):
         layout.setContentsMargins(24, 20, 24, 20)
 
         # ── 标题 ──
-        title = StrongBodyLabel(f"VSR魔改版 - Video Subtitle Remover v{VERSION}")
+        title = StrongBodyLabel(f"VSR魔改版 - Video Subtitle Remover v{VERSION}")  # LVBOBO_markdown_BUG
         title.setStyleSheet("font-size: 18px; font-weight: bold; color: #ffd700;")
         title.setAlignment(Qt.AlignCenter)
         layout.addWidget(title)

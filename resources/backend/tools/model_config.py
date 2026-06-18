@@ -6,6 +6,7 @@ from backend.tools.common_tools import merge_big_file_if_not_exists
 from backend.tools.constant import SubtitleDetectMode
 
 
+# LVBOBO_markdown_BUG - 新增：首次启动自动检测并下载缺失模型
 def _ensure_models_downloaded():
     """Check if models exist; if not, prompt user to download."""
     models_dir = os.path.join(BASE_DIR, 'models')

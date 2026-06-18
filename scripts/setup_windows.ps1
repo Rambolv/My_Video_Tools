@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    VSR Windows 一键安装脚本
+    VSR Windows 一键安装脚本  # LVBOBO_markdown_BUG - 新增：自动安装Python+依赖+模型
     自动下载 Python 运行环境、安装依赖、下载 AI 模型
 
 .DESCRIPTION

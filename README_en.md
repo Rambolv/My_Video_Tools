@@ -1,4 +1,4 @@
-# VSR Modded Edition - Video Subtitle Remover
+# VSR Modded Edition - Video Subtitle Remover  <!-- LVBOBO_markdown_BUG - 新增英文README -->
 
 ![Python](https://img.shields.io/badge/Python-3.12+-blue)
 ![PySide6](https://img.shields.io/badge/PySide6-6.9.0-green)

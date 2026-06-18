@@ -1,4 +1,4 @@
-# VSR Modded Edition - Architecture
+# VSR Modded Edition - Architecture  <!-- LVBOBO_markdown_BUG - 新增英文文档 -->
 
 [简体中文](ARCHITECTURE.md) | English
 

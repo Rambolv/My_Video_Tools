@@ -1,5 +1,5 @@
 """
-VSR Model Downloader
+VSR Model Downloader  # LVBOBO_markdown_BUG - 新增：模型自动下载工具
 Downloads AI models from GitHub Releases on first launch.
 
 Models are downloaded from:

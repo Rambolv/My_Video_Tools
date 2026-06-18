@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    VSR 源码包构建工具 - 仅打包源代码（不含运行环境+模型）
+    VSR 源码包构建工具 - 仅打包源代码（不含运行环境+模型）  # LVBOBO_markdown_BUG
 
 .DESCRIPTION
     与旧版不同，本脚本只打包 Python 源代码文件。

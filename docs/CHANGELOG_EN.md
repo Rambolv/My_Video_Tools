@@ -1,4 +1,4 @@
-# VSR Modded Edition - Changelog
+# VSR Modded Edition - Changelog  <!-- LVBOBO_markdown_BUG - 新增英文文档 -->
 
 [简体中文](CHANGELOG.md) | English
 

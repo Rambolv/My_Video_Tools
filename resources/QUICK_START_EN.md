@@ -1,4 +1,4 @@
-# VSR Modded Edition - Quick Start Guide
+# VSR Modded Edition - Quick Start Guide  <!-- LVBOBO_markdown_BUG -->
 
 [简体中文](QUICK_START.md) | English
 

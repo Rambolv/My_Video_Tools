@@ -1,4 +1,4 @@
-# VSR魔改版 功能设计文档
+# VSR魔改版 功能设计文档  <!-- LVBOBO_markdown_BUG -->
 
 [English](FEATURES_EN.md) | 简体中文
 

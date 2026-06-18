@@ -1,4 +1,4 @@
-# VSR魔改版 一键使用指南
+# VSR魔改版 一键使用指南  <!-- LVBOBO_markdown_BUG -->
 
 [English](QUICK_START_EN.md) | 简体中文
 

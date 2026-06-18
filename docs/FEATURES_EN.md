@@ -1,4 +1,4 @@
-# VSR Modded Edition - Feature Design
+# VSR Modded Edition - Feature Design  <!-- LVBOBO_markdown_BUG - 新增英文文档 -->
 
 [简体中文](FEATURES.md) | English
 

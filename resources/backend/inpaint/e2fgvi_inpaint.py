@@ -10,7 +10,7 @@ https://github.com/MCG-NKU/E2FGVI
 - 对动态水印/移动物体去除效果优异
 - 显存占用适中，4090及以下显卡可用
 
-模型下载：
+模型下载：  # LVBOBO_markdown_BUG - 合规清理：移除百度网盘链接
 E2FGVI-HQ: https://drive.google.com/file/d/10wGdKSUOie0XmCr8SQ2A2FeDe-mfn5w3
 
 下载后放置到: backend/E2FGVI/release_model/E2FGVI-HQ-CVPR22.pth

@@ -61,7 +61,7 @@ resources/design/*.gif
 resources/design/*.jpg
 resources/design/*.pdf
 
-# VRAM records (auto-generated)
+# VRAM records (auto-generated)  # LVBOBO_markdown_BUG
 resources/config/vram_records.json
 resources/backend/config/vram_records.json
 

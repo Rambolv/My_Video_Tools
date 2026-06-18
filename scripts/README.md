@@ -1,4 +1,4 @@
-# VSR 发布与打包工具
+# VSR 发布与打包工具  <!-- LVBOBO_markdown_BUG -->
 
 This directory contains scripts for building and distributing VSR minimal packages.
 
