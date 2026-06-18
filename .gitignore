@@ -71,3 +71,6 @@ resources/backend/config/vram_records.json
 # Test files
 _test_*
 ffmpeg/binaries
+
+*.html
+builds/
