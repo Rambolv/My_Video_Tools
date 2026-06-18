@@ -6,7 +6,7 @@
 
 [English](README_en.md) | 简体中文
 
-> **VSR魔改版** — 基于原版 VSR v1.1.0 深度二次开发，在原项目基础上进行了大量功能增强和 UI 重构。
+> **VSR魔改版** — 基于原版 VSR v1.4.0 深度二次开发，在原项目基础上进行了大量功能增强和 UI 重构。
 > 支持 GPU 加速，提供图形化界面和命令行两种使用方式。
 
 ---
@@ -26,7 +26,7 @@
 
 ## 📖 项目来源
 
-本项目基于 [**YaoFANGUK/video-subtitle-remover**](https://github.com/YaoFANGUK/video-subtitle-remover)（VSR v1.1.0）进行深度二次开发，在原项目基础上进行了大量功能增强和 UI 重构。
+本项目基于 [**YaoFANGUK/video-subtitle-remover**](https://github.com/YaoFANGUK/video-subtitle-remover)（VSR v1.4.0）进行深度二次开发，在原项目基础上进行了大量功能增强和 UI 重构。
 
 ### 原项目信息
 
@@ -34,7 +34,7 @@
 |------|------|
 | **原作者** | [YaoFANGUK](https://github.com/YaoFANGUK) |
 | **原项目地址** | https://github.com/YaoFANGUK/video-subtitle-remover |
-| **原始版本** | v1.1.0 |
+| **原始版本** | v1.4.0 |
 | **原始许可证** | Apache License 2.0 |
 
 ### 本分支新增/改进的功能

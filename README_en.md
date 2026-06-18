@@ -6,7 +6,7 @@
 
 [简体中文](README.md) | English
 
-> **VSR Modded Edition** — A deep fork of VSR v1.1.0 with extensive feature enhancements and UI refactoring.
+> **VSR Modded Edition** — A deep fork of VSR v1.4.0 with extensive feature enhancements and UI refactoring.
 > GPU-accelerated hard-coded subtitle removal tool with both GUI and CLI interfaces.
 
 ---
@@ -26,7 +26,7 @@
 
 ## 📖 Project Origin
 
-This project is a deep fork of [**YaoFANGUK/video-subtitle-remover**](https://github.com/YaoFANGUK/video-subtitle-remover) (VSR v1.1.0), with extensive feature enhancements and UI refactoring.
+This project is a deep fork of [**YaoFANGUK/video-subtitle-remover**](https://github.com/YaoFANGUK/video-subtitle-remover) (VSR v1.4.0), with extensive feature enhancements and UI refactoring.
 
 ### Original Project Info
 
@@ -34,7 +34,7 @@ This project is a deep fork of [**YaoFANGUK/video-subtitle-remover**](https://gi
 |------|-------------|
 | **Original Author** | [YaoFANGUK](https://github.com/YaoFANGUK) |
 | **Original Repository** | https://github.com/YaoFANGUK/video-subtitle-remover |
-| **Original Version** | v1.1.0 |
+| **Original Version** | v1.4.0 |
 | **Original License** | Apache License 2.0 |
 
 ### New / Improved Features in This Fork
