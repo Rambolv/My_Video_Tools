@@ -63,14 +63,14 @@ This project is a deep fork of [**YaoFANGUK/video-subtitle-remover**](https://gi
 - **Window Position Memory**: Auto-save/restore window position and size
 
 #### 🧠 Smart VRAM Management
-- **VRAM Passive Monitoring**: Auto-collects GPU memory peaks during normal workflow
+- **VRAM Passive Monitoring**: Automatically collects GPU memory peaks during normal workflow
 - **VRAM Estimation Reference Table**: Built-in baselines for 14 models, real collected values preferred
-- **Concurrent Task VRAM Red-Flag**: Concurrency options exceeding VRAM auto-marked with red ⚠️
+- **Concurrent Task VRAM Red-Flag**: Concurrency options exceeding VRAM are auto-marked with red ⚠️
 - **E2FGVI VRAM Warning**: Auto red alert when GPU VRAM < 48GB
 - **Color-Coded System**: ≥95% red / ≥85% orange / ≥70% yellow / <70% green
 
 #### 🔧 Technical Architecture
-- **Scene Detection**: Frame-difference based scene cut detection for optimal interval grouping
+- **Scene Detection**: Frame-difference-based scene cut detection for optimal interval grouping
 - **Hardware Acceleration Layer**: Unified CUDA / ONNX acceleration interface
 - **FFmpeg CLI Wrapper**: Video codec, audio merge, format conversion
 - **Process Manager**: Unified child process lifecycle management (multiprocessing)
