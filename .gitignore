@@ -31,13 +31,14 @@ resources/configs/logs/
 resources/config/config.json
 
 # Models (large binary files)
-resources/backend/models/**/*.pth
-resources/backend/models/**/*.onnx
-resources/backend/models/**/*.pdmodel
-resources/backend/models/**/*.pdiparams
-resources/backend/models/**/*.pdopt
-!resources/backend/models/**/inference.onnx
-!resources/backend/models/**/*.txt
+resources/backend/models/
+resources/backend/E2FGVI/
+resources/backend/sam2/
+
+# Design assets (large)
+resources/design/*.gif
+resources/design/*.jpg
+resources/design/*.pdf
 
 # VRAM records (auto-generated)
 resources/config/vram_records.json
