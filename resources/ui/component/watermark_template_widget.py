@@ -57,7 +57,7 @@ class WatermarkTemplateWidget(CardWidget):
 
         # --- 标题行 ---
         title_layout = QHBoxLayout()
-        title_label = StrongBodyLabel("🎯 水印模板检测")
+        title_label = StrongBodyLabel("🎯 自定义水印")
         title_layout.addWidget(title_label)
         title_layout.addStretch()
 
@@ -199,6 +199,20 @@ class WatermarkTemplateWidget(CardWidget):
         force_layout.addStretch()
         main_layout.addLayout(force_layout)
 
+        # --- 跟踪浮动水印开关 ---
+        track_layout = QHBoxLayout()
+        track_label = BodyLabel("跟踪浮动水印:")
+        track_layout.addWidget(track_label)
+        self.track_floating_switch = SwitchButton()
+        self.track_floating_switch.setChecked(config.watermarkTrackFloating.value)
+        self.track_floating_switch.checkedChanged.connect(self._on_track_floating_changed)
+        self.track_floating_switch.setToolTip(
+            "开启后自动跟踪并在每一帧中清理视频中的浮动/移动水印"
+        )
+        track_layout.addWidget(self.track_floating_switch)
+        track_layout.addStretch()
+        main_layout.addLayout(track_layout)
+
         # --- 子功能依赖提示 ---
         self.dep_hint = CaptionLabel("")
         self.dep_hint.setWordWrap(True)
@@ -209,13 +223,13 @@ class WatermarkTemplateWidget(CardWidget):
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(6)
 
-        self.capture_btn = PushButton("截取模板")
+        self.capture_btn = PushButton("手动截取视频中水印")
         self.capture_btn.setIcon(FluentIcon.PHOTO)
         self.capture_btn.setFixedHeight(28)
         self.capture_btn.clicked.connect(self._on_capture_clicked)
         btn_layout.addWidget(self.capture_btn)
 
-        self.load_btn = PushButton("加载图片")
+        self.load_btn = PushButton("加载水印图片")
         self.load_btn.setIcon(FluentIcon.FOLDER)
         self.load_btn.setFixedHeight(28)
         self.load_btn.clicked.connect(self._on_load_clicked)
@@ -497,6 +511,10 @@ class WatermarkTemplateWidget(CardWidget):
         """强制清理区域水印开关"""
         config.set(config.watermarkForceRegionInpaintEnabled, checked)
 
+    def _on_track_floating_changed(self, checked: bool):
+        """跟踪浮动水印开关"""
+        config.set(config.watermarkTrackFloating, checked)
+
     def _on_clear_clicked(self):
         """清除模板"""
         self._clear_template_display()
@@ -506,11 +524,13 @@ class WatermarkTemplateWidget(CardWidget):
         config.set(config.watermarkPowerSweepEnabled, False)
         config.set(config.watermarkRegionFullSweepEnabled, False)
         config.set(config.watermarkForceRegionInpaintEnabled, False)
+        config.set(config.watermarkTrackFloating, False)
         self.enable_switch.setChecked(False)
         self.color_propagation_switch.setChecked(False)
         self.power_sweep_switch.setChecked(False)
         self.region_full_sweep_switch.setChecked(False)
         self.force_region_switch.setChecked(False)
+        self.track_floating_switch.setChecked(False)
         InfoBar.info(
             "模板已清除",
             "水印模板检测已禁用",

@@ -262,6 +262,14 @@ class SubtitleDetect:
             temp_list = self.detect_subtitle_with_watermark(frame, current_frame_no)
             if len(temp_list) > 0:
                 subtitle_frame_no_box_dict[current_frame_no] = temp_list
+            # 强制全帧遮罩：当OCR未检测到但用户已框选区域时，直接用框选区域生成遮罩
+            elif (config.forceSubAreaMaskAllFrames.value and self.sub_areas
+                  and len(self.sub_areas) > 0):
+                # 将用户框选的 sub_areas 转为 (xmin,xmax,ymin,ymax) 格式
+                forced_boxes = []
+                for s_ymin, s_ymax, s_xmin, s_xmax in self.sub_areas:
+                    forced_boxes.append((s_xmin, s_xmax, s_ymin, s_ymax))
+                subtitle_frame_no_box_dict[current_frame_no] = forced_boxes
             tbar.update(1)
             if sub_remover:
                 sub_remover.progress_total = (100 * float(current_frame_no) / float(frame_count)) // 2

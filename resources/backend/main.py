@@ -71,7 +71,10 @@ class SubtitleRemover:
         self.video_temp_file = tempfile.NamedTemporaryFile(suffix='.mp4', delete=False)
         # 创建视频写对象
         self.video_writer = cv2.VideoWriter(get_readable_path(self.video_temp_file.name), cv2.VideoWriter_fourcc(*'mp4v'), self.fps, self.size)
-        self.video_out_path = os.path.abspath(os.path.join(os.path.dirname(self.video_path), f'{self.vd_name}_no_sub.mp4'))
+        # 输出文件名，后续在 run() 中会根据扫除次数更新后缀
+        self.video_out_path = os.path.abspath(os.path.join(
+            os.path.dirname(self.video_path),
+            f'{self.vd_name}_no_sub.mp4'))
         self.propainter_inpaint = None
         self.ext = os.path.splitext(vd_path)[-1]
         if self.is_picture:
@@ -474,6 +477,8 @@ class SubtitleRemover:
                         break
                     current_frame_index += 1
                     frames_need_inpaint.append(frame)
+                # 保存未经处理的原始帧副本（用于自适应原始保护混合的参考）
+                frames_raw_original = [f.copy() for f in frames_need_inpaint]
                 mask_area_coordinates = []
                 # 1. 获取当前批次的mask坐标全集
                 for mask_index in range(start_frame_index, end_frame_index):
@@ -485,13 +490,156 @@ class SubtitleRemover:
                                 continue
                             if area not in mask_area_coordinates:
                                 mask_area_coordinates.append(area)
+
+                # ---- 变形检测 + 自适应遮罩扩展：文字大幅变形时使用整个检测区域 ----
+                if config.sweepModeEnabled.value and mask_area_coordinates:
+                    try:
+                        from backend.tools.inpaint_tools import (
+                            merge_deformation_mask, detect_text_deformation
+                        )
+                        # 先检测文字是否大幅变形
+                        is_deforming, deform_score = detect_text_deformation(
+                            sub_list, start_frame_index, end_frame_index,
+                            pos_std_threshold=15.0, size_std_threshold=10.0
+                        )
+                        if is_deforming:
+                            # 大幅变形 → 使用用户手动选取的整个检测区域
+                            deform_pct = int(deform_score * 100)
+                            sub_areas_xyxy = []
+                            for (y1, y2, x1, x2) in self.sub_areas:
+                                sub_areas_xyxy.append((x1, x2, y1, y2))
+                            mask_area_coordinates = sub_areas_xyxy
+                            self.append_output(f"  ⚠️ [大幅变形] 评分{deform_pct}% > 阈值 → 遮罩已扩展为整个检测区域({len(sub_areas_xyxy)}块)")
+                        else:
+                            # 轻度变形 → 用合并扩展遮罩
+                            original_count = len(mask_area_coordinates)
+                            mask_area_coordinates = merge_deformation_mask(
+                                mask_area_coordinates,
+                                self.frame_width, self.frame_height,
+                                base_expand=20, deform_factor=0.3
+                            )
+                            self.append_output(f"  [变形自适应遮罩] 合并{original_count}个检测框→{len(mask_area_coordinates)}个区域")
+                    except Exception as e:
+                        self.append_output(f"  [变形自适应遮罩] 跳过: {e}")
+
+                # ---- 时序中值滤波：对遮罩区域做跨帧中值，消除变色/变形文字 ----
+                if config.temporalMedianFilter.value and mask_area_coordinates:
+                    try:
+                        from backend.tools.inpaint_tools import temporal_median_filter_frames, create_mask
+                        med_mask = create_mask(
+                            (self.frame_height, self.frame_width),
+                            mask_area_coordinates,
+                            feather_edges=False
+                        )
+                        window = config.temporalMedianWindow.value
+                        # 扫除模式下使用更小窗口，避免过渡模糊
+                        if config.sweepModeEnabled.value and window > 15:
+                            window = 15
+                        frames_need_inpaint = temporal_median_filter_frames(
+                            frames_need_inpaint, med_mask, window
+                        )
+                        self.append_output(f"  [时序中值滤波] 窗口={window}帧")
+                    except Exception as e:
+                        self.append_output(f"  [时序中值滤波] 跳过: {e}")
+
+                # ---- 中值体背景估计（扫除模式专用）：全色彩空间聚类，精准去除半透明混合水印 ----
+                if config.sweepModeEnabled.value and mask_area_coordinates:
+                    try:
+                        from backend.tools.inpaint_tools import batch_density_estimate, create_mask
+                        de_mask = create_mask(
+                            (self.frame_height, self.frame_width),
+                            mask_area_coordinates,
+                            feather_edges=False
+                        )
+                        frames_need_inpaint = batch_density_estimate(
+                            frames_need_inpaint, de_mask, window=31, blend_orig=0.15
+                        )
+                        self.append_output(f"  [密度峰值背景估计] RGB聚类 31帧(保留15%原始纹理)")
+                    except Exception as e:
+                        self.append_output(f"  [中值体背景估计] 跳过: {e}")
+
                 # 1. 获取当前批次使用的mask（使用首帧进行水印多边形检测）
                 mask = self._create_enhanced_mask(mask_area_coordinates, frames_need_inpaint[0])
+
+                # ---- 邻近干净帧填充：从没有文字检测的帧复制背景 ----
+                try:
+                    from backend.tools.inpaint_tools import exemplar_fill_from_clean_frames
+                    frames_need_inpaint = exemplar_fill_from_clean_frames(
+                        frames_need_inpaint, mask, sub_list,
+                        start_frame_index, search_range=30
+                    )
+                except Exception:
+                    pass
                 # self.append_output(f'inpaint with mask: {mask_area_coordinates}')
+                _batch_offset = 0
                 for batch in batch_generator(frames_need_inpaint, config.getSttnMaxLoadNum()):
                     # 2. 调用批推理
+                    _bsize = len(batch)
+                    _raw_batch = frames_raw_original[_batch_offset:_batch_offset + _bsize]
+                    _batch_offset += _bsize
                     if len(batch) >= 1:
+                        # 第一次推理
                         inpainted_frames = model(batch, mask)
+                        # 扫除模式：多遍修复（3次推理 + 亮色残留清理 + 残留边缘检测修补）
+                        if config.sweepModeEnabled.value:
+                            try:
+                                # 第二次推理
+                                inpainted_frames2 = model(inpainted_frames, mask)
+                                # 第三次推理（在第二次结果上再推理一次）
+                                inpainted_frames3 = model(inpainted_frames2, mask)
+                                # 三次加权混合（权重递减）
+                                inpainted_frames = [
+                                    cv2.addWeighted(
+                                        cv2.addWeighted(f1, 0.5, f2, 0.3, 0),
+                                        0.8, f3, 0.2, 0
+                                    )
+                                    for f1, f2, f3 in zip(inpainted_frames, inpainted_frames2, inpainted_frames3)
+                                ]
+                                self.append_output("  [多遍修复] 三次推理已应用")
+
+                                # 亮色残留清理：检测遮罩区内异常亮斑并压制
+                                from backend.tools.inpaint_tools import batch_remove_bright_residuals
+                                inpainted_frames = batch_remove_bright_residuals(
+                                    batch, inpainted_frames, mask
+                                )
+                                self.append_output("  [亮斑清理] 白色残留已压制")
+
+                                # 残留文字边缘检测 + 邻近干净帧填充
+                                from backend.tools.inpaint_tools import exemplar_fill_residuals
+                                inpainted_frames = exemplar_fill_residuals(
+                                    batch, inpainted_frames, mask, sub_list,
+                                    start_frame_index, search_range=10
+                                )
+                                self.append_output("  [残留修补] 文字边缘检测+二次填充已应用")
+                            except Exception as e:
+                                self.append_output(f"  [扫除增强] 跳过: {e}")
+                        # 3. 后处理：锐化 + 羽化混合 + 颜色校正
+                        try:
+                            from backend.tools.inpaint_tools import batch_refine
+                            inpainted_frames = batch_refine(
+                                batch, mask, inpainted_frames,
+                                sharpen_strength=config.postSharpenStrength.value / 100.0,
+                                blend_feather=20
+                            )
+                            # 4. 颗粒感恢复：消除 AI 修复的"塑料感"
+                            try:
+                                from backend.tools.inpaint_tools import batch_restore_grain
+                                inpainted_frames = batch_restore_grain(
+                                    inpainted_frames, mask, strength=0.4
+                                )
+                            except Exception:
+                                pass
+                        except Exception:
+                            pass
+                        # 5. 自适应原始保护混合 v2 — 多模态检测（亮度+色差），只在水印残留处使用处理结果
+                        try:
+                            from backend.tools.inpaint_tools import adaptive_orig_blend
+                            inpainted_frames = adaptive_orig_blend(
+                                _raw_batch, inpainted_frames, mask,
+                                color_threshold=2.0, bright_threshold=1.5, feather_blend=10
+                            )
+                        except Exception:
+                            pass
                         for i, inpainted_frame in enumerate(inpainted_frames):
                             self.video_writer.write(inpainted_frame)
                             # self.append_output(f'write frame: {start_frame_index + inner_index} with mask')
@@ -540,6 +688,18 @@ class SubtitleRemover:
             # 精准模式下，获取场景分割的帧号，进一步切割
             self.apply_processing_depth()
             self.log_model()
+
+            # ---- 多循环暴力扫除模式：变形自适应遮罩 + 强时序滤波 ----
+            if config.sweepModeEnabled.value:
+                iters = config.sweepIterations.value
+                config.set(config.subtitleTimelineBackwardFrameCount, 20, save=False)
+                config.set(config.subtitleTimelineForwardFrameCount, 20, save=False)
+                # 强制开启时序滤波
+                config.set(config.temporalMedianFilter, True, save=False)
+                config.set(config.temporalMedianWindow, 31, save=False)
+                config.set(config.forceSubAreaMaskAllFrames, True, save=False)
+                config.set(config.watermarkAggressiveMode, True, save=False)
+                self.append_output(f"[多循环暴力扫除] 已启用: 变形自适应遮罩·RGB聚类·{iters}轮循环")
 
             # ---- VRAM 被动监控 ----
             vram_monitor = None
@@ -592,18 +752,103 @@ class SubtitleRemover:
 
         self.video_cap.release()
         self.video_writer.release()
+
+        # ---- 多轮扫除：将上一轮输出作为输入反复处理 ----
+        sweep_iters = config.sweepIterations.value
+        if config.sweepModeEnabled.value and sweep_iters > 1 and not self.is_picture:
+            _orig_video_path = self.video_path  # 保存原始视频路径（用于最后合并音频）
+            for _pass in range(1, sweep_iters):
+                self.append_output(f"\n{'='*50}")
+                self.append_output(f"🔄 第{_pass + 1}轮扫除 ({_pass + 1}/{sweep_iters})...")
+                self.append_output(f"{'='*50}")
+
+                # 上一轮输出作为本轮输入
+                prev_temp_path = self.video_temp_file.name
+
+                # 创建新的临时输出文件
+                self.video_temp_file = tempfile.NamedTemporaryFile(suffix='.mp4', delete=False)
+
+                # 关键：将 self.video_path 指向上一轮清理后的视频，确保字幕检测和模式方法
+                # （propainter_mode / video_inpaint 等）内部使用的视频路径与帧读取一致
+                self.video_path = prev_temp_path
+                self.video_cap = cv2.VideoCapture(get_readable_path(prev_temp_path))
+                self.video_writer = cv2.VideoWriter(
+                    get_readable_path(self.video_temp_file.name),
+                    cv2.VideoWriter_fourcc(*'mp4v'),
+                    self.fps, self.size
+                )
+
+                # 重新运行修复流水线（模式方法内部会自行完成字幕检测+修复）
+                self.append_output(f"  → 运行修复模型 ({config.inpaintMode.value.value})...")
+                _mode_ok = True
+                try:
+                    if config.inpaintMode.value == InpaintMode.PROPAINTER:
+                        self.propainter_mode(tbar)
+                    elif config.inpaintMode.value == InpaintMode.STTN_AUTO:
+                        self.sttn_auto_mode(tbar)
+                    elif config.inpaintMode.value == InpaintMode.STTN_DET:
+                        self.video_inpaint(tbar, self.sttn_det_inpaint)
+                    elif config.inpaintMode.value == InpaintMode.LAMA:
+                        self.video_inpaint(tbar, self.lama_inpaint)
+                    elif config.inpaintMode.value == InpaintMode.E2FGVI:
+                        self.e2fgvi_mode(tbar)
+                    elif config.inpaintMode.value == InpaintMode.OPENCV:
+                        self.video_inpaint(tbar, OpenCVInpaint())
+                except Exception as e:
+                    self.append_output(f"  ⚠️ 第{_pass + 1}轮修复失败: {e}，跳过")
+                    _mode_ok = False
+
+                # 清理本轮资源
+                self.video_cap.release()
+                self.video_writer.release()
+
+                if not _mode_ok:
+                    # 修复失败，恢复上一轮结果
+                    try:
+                        self.video_temp_file.close()
+                        os.unlink(self.video_temp_file.name)
+                    except Exception:
+                        pass
+                    self.video_temp_file = tempfile.NamedTemporaryFile(
+                        suffix='.mp4', delete=False)
+                    shutil.copy2(prev_temp_path, self.video_temp_file.name)
+                else:
+                    # 成功，删除上一轮临时文件
+                    try:
+                        os.unlink(prev_temp_path)
+                    except Exception:
+                        pass
+                    self.append_output(f"  ✅ 第{_pass + 1}轮扫除完成")
+
+            # 恢复原始视频路径，供后续 merge_audio_to_video 提取音频
+            self.video_path = _orig_video_path
+
         if not self.is_picture:
+            # 最终确定输出文件名（含扫除轮数标记）
+            if config.sweepModeEnabled.value and config.sweepIterations.value > 1:
+                _final_iters = config.sweepIterations.value
+                self.video_out_path = os.path.abspath(os.path.join(
+                    os.path.dirname(self.video_path),
+                    f'{self.vd_name}_{_final_iters}clean_no_sub.mp4'))
+            self.append_output(f"  → 输出文件: {self.video_out_path}")
             # 将原音频合并到新生成的视频文件中
             self.merge_audio_to_video()
         self.append_output(tr['Main']['FinishedProcessing'].format(self.video_out_path))
         self.append_output(tr['Main']['ProcessingTime'].format(round(time.time() - start_time)))
         self.isFinished = True
         self.progress_total = 100
-        if os.path.exists(self.video_temp_file.name):
-            try:
-                os.remove(self.video_temp_file.name)
-            except Exception:
-                pass #ignore
+        # 清理临时文件
+        try:
+            if hasattr(self, 'video_temp_file') and self.video_temp_file is not None:
+                self.video_temp_file.close()
+            temp_path = self.video_temp_file.name if hasattr(self.video_temp_file, 'name') else None
+            if temp_path and os.path.exists(temp_path):
+                # 等待一小段时间确保文件句柄释放
+                import time as _time
+                _time.sleep(0.5)
+                os.remove(temp_path)
+        except Exception:
+            pass
 
     def log_model(self):
         mode_str = config.inpaintMode.value.value  # enum member → string, e.g. "e2fgvi"
@@ -628,6 +873,11 @@ class SubtitleRemover:
         """
         d = config.processingDepth.value / 100.0  # 归一化到 0~1
 
+        # ---- 强力去水印模式：额外增加 50% mask 膨胀 ----
+        if config.watermarkAggressiveMode.value:
+            d = min(d * 1.5, 1.0)  # 等效深度提升 50%
+            print("[强力去水印] 已启用: mask 膨胀 +50%")
+
         # ---- 插值工具 ----
         def lerp(lo, hi, depth):
             """线性插值；int/float 直接算，bool 按阈值，str 枚举按阈值"""
@@ -648,17 +898,17 @@ class SubtitleRemover:
         # ---- 定义各参数在 depth=0(轻度) 和 depth=100(极致) 时的值 ----
         param_specs = {
             # 通用检测
-            "subtitleAreaDeviationPixel":       (5, 30),
-            "subtitleTimelineBackwardFrameCount": (1, 10),
-            "subtitleTimelineForwardFrameCount":  (1, 10),
+            "subtitleAreaDeviationPixel":       (5, 40),
+            "subtitleTimelineBackwardFrameCount": (1, 12),
+            "subtitleTimelineForwardFrameCount":  (1, 12),
             # STTN
             "sttnNeighborStride":               (6, 3),     # 步长越小越精细
             "sttnReferenceLength":              (5, 20),
             "sttnMaxLoadNum":                   (80, 20),   # 越小单批越精细
             # ProPainter
             "propainterMaxLoadNum":             (40, 15),
-            "propainterMaskDilates":            (4, 20),
-            "propainterFlowMaskDilates":        (6, 30),
+            "propainterMaskDilates":            (4, 30),
+            "propainterFlowMaskDilates":        (6, 40),
             # E2FGVI
             "e2fgviMaxLoadNum":                 (12, 4),
             # 水印检测 — 数值型

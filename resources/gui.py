@@ -179,6 +179,13 @@ if __name__ == '__main__':
     window.setWindowOpacity(0.0)
     window.show()
     window.load_window_position()
+    
+    # 启动弹窗（如果未勾选"不再显示"）
+    if not config.skipStartupDialog.value:
+        from ui.component.startup_dialog import StartupDialog
+        dialog = StartupDialog(window)
+        dialog.exec()
+    
     # 使用动画效果逐渐显示窗口
     animation = QtCore.QPropertyAnimation(window, b"windowOpacity")
     animation.setDuration(300)  # 300毫秒的动画

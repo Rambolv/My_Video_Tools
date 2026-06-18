@@ -207,7 +207,7 @@ class SettingInterface(ScrollArea):
         self.scrollLayout.addWidget(self.vram_ref_section)
 
         # ---- 水印检测组（可折叠） ----
-        self.watermark_section = _CollapsibleSection("水印检测", self.scrollWidget)
+        self.watermark_section = _CollapsibleSection("自定义水印", self.scrollWidget)
         self.watermark_template_widget = WatermarkTemplateWidget(parent=self.watermark_section)
         self.watermark_section.addWidget(self.watermark_template_widget)
         self.scrollLayout.addWidget(self.watermark_section)

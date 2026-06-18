@@ -28,12 +28,33 @@ resources/configs/logs/
 *.log
 
 # Config (user-specific, keep template)
+
+# Backup directories
+BACKUP_20260616/
+BACKUP_20260616_error_hint_enhance/
+BACKUP_20260616_modified/
+BACKUP_20260616_watermark_gui/
+
+# Generated
+config/
+configs/
+opt/
+resources/test/
+*.cmd
+wechat_*.jpg
+启动程序.exe
+
+# Claude
+.claude/settings.local.json
 resources/config/config.json
 
 # Models (large binary files)
 resources/backend/models/
 resources/backend/E2FGVI/
 resources/backend/sam2/
+
+# FFmpeg (large binaries)
+resources/backend/ffmpeg/
 
 # Design assets (large)
 resources/design/*.gif
@@ -48,3 +69,4 @@ resources/config/vram_records.json
 
 # Test files
 _test_*
+ffmpeg/binaries

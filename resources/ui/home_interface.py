@@ -12,8 +12,8 @@ from PySide6.QtWidgets import (QWidget, QHBoxLayout, QVBoxLayout, QSplitter,
 from PySide6.QtCore import Slot, QRect, Signal, Qt, QMetaObject, Q_ARG
 from PySide6 import QtWidgets
 from qfluentwidgets import (PushButton, CardWidget, PlainTextEdit, FluentIcon,
-                            BodyLabel, InfoBar, SwitchButton,
-                            PrimaryPushButton)
+                            BodyLabel, InfoBar, SwitchButton, SpinBox,
+                            PrimaryPushButton, qconfig)
 from PySide6.QtGui import QColor
 from ui.component.func_card import CollapsibleFuncCard, SettingRow, HelpButton, SectionHeader
 from ui.component.video_display_component import VideoDisplayComponent
@@ -430,7 +430,7 @@ class HomeInterface(QWidget):
         self._color_concurrency_items()
 
         # ── 水印检测 ──
-        wm_section = _SimpleCollapsible("水印检测",
+        wm_section = _SimpleCollapsible("自定义水印",
             config_item=config.watermarkSectionCollapsed)
         from ui.component.watermark_template_widget import WatermarkTemplateWidget
         self.watermark_template_widget = WatermarkTemplateWidget(
@@ -442,6 +442,115 @@ class HomeInterface(QWidget):
                 self.watermark_template_widget.set_capture_result)
         except AttributeError:
             pass
+
+        # 强力去水印模式开关
+        aggr_row = QtWidgets.QHBoxLayout()
+        aggr_row.setContentsMargins(84, 0, 0, 0)
+        aggr_label = BodyLabel("强力去水印")
+        aggr_label.setStyleSheet("font-size: 11px; color: #e81123;")
+        aggr_row.addWidget(aggr_label)
+        self._aggressive_switch = SwitchButton()
+        self._aggressive_switch.setChecked(config.watermarkAggressiveMode.value)
+        self._aggressive_switch.checkedChanged.connect(
+            lambda v: config.set(config.watermarkAggressiveMode, v))
+        self._aggressive_switch.setToolTip("开启后 mask 膨胀 +50%，适合顽固水印残留")
+        aggr_row.addWidget(self._aggressive_switch)
+        aggr_row.addStretch()
+        aggr_w = QtWidgets.QWidget()
+        aggr_w.setLayout(aggr_row)
+        aggr_w.setFixedHeight(28)
+        wm_section.addWidget(aggr_w)
+
+        # 强制全帧遮罩开关
+        force_row = QtWidgets.QHBoxLayout()
+        force_row.setContentsMargins(84, 0, 0, 0)
+        force_label = BodyLabel("强制全帧遮罩")
+        force_label.setStyleSheet("font-size: 11px; color: #ff8c00;")
+        force_row.addWidget(force_label)
+        self._force_mask_switch = SwitchButton()
+        self._force_mask_switch.setChecked(config.forceSubAreaMaskAllFrames.value)
+        self._force_mask_switch.checkedChanged.connect(
+            lambda v: config.set(config.forceSubAreaMaskAllFrames, v))
+        self._force_mask_switch.setToolTip("开启后，在您框选的区域上对所有帧强制生成遮罩（不依赖OCR检测）")
+        force_row.addWidget(self._force_mask_switch)
+        force_row.addStretch()
+        force_w = QtWidgets.QWidget()
+        force_w.setLayout(force_row)
+        force_w.setFixedHeight(28)
+        wm_section.addWidget(force_w)
+
+        # 时序中值滤波开关
+        tmf_row = QtWidgets.QHBoxLayout()
+        tmf_row.setContentsMargins(84, 0, 0, 0)
+        tmf_label = BodyLabel("时序中值滤波")
+        tmf_label.setStyleSheet("font-size: 11px; color: #4aa3df;")
+        tmf_row.addWidget(tmf_label)
+        self._tmf_switch = SwitchButton()
+        self._tmf_switch.setChecked(config.temporalMedianFilter.value)
+        self._tmf_switch.checkedChanged.connect(
+            lambda v: config.set(config.temporalMedianFilter, v))
+        self._tmf_switch.setToolTip("对遮罩区域做跨帧中值滤波，消除变色/变形/闪动文字")
+        tmf_row.addWidget(self._tmf_switch)
+        tmf_row.addStretch()
+        tmf_w = QtWidgets.QWidget()
+        tmf_w.setLayout(tmf_row)
+        tmf_w.setFixedHeight(28)
+        wm_section.addWidget(tmf_w)
+
+        # ── 多循环暴力扫除按钮（开关式）──
+        sweep_row = QtWidgets.QHBoxLayout()
+        sweep_row.setContentsMargins(84, 0, 0, 0)
+        self._sweep_btn = PushButton("🔴 多循环暴力扫除 (关)")
+        self._sweep_btn.setMinimumHeight(30)
+        self._sweep_btn.setCheckable(True)
+        self._sweep_btn.setChecked(config.sweepModeEnabled.value)
+        self._sweep_btn.clicked.connect(self._toggle_sweep_mode)
+        self._sweep_btn.setToolTip(
+            "【多循环暴力扫除】专杀AI急速变化/扭曲/变形Logo水印\n"
+            "\n"
+            "开启后每轮执行：\n"
+            "  ① 变形自适应遮罩扩展 → ② 强时序中值滤波(15帧)\n"
+            "  ③ 密度峰值RGB背景聚类 → ④ 3遍模型推理\n"
+            "  ⑤ 亮色残留压制 → ⑥ 自适应原始保护混合\n"
+            "\n"
+            "多轮循环：上一轮输出作为下一轮输入，逐步磨除顽固水印\n"
+            "次数越多效果越好（处理时间=次数×单轮时间）\n"
+            "推荐值：2~3轮，重度变形水印可用4~5轮"
+        )
+        self._update_sweep_btn_style()
+        sweep_row.addWidget(self._sweep_btn)
+        sweep_row.addStretch()
+        sweep_w = QtWidgets.QWidget()
+        sweep_w.setLayout(sweep_row)
+        sweep_w.setFixedHeight(34)
+        wm_section.addWidget(sweep_w)
+
+        # ── 扫除次数设置 ──
+        si_row = QtWidgets.QHBoxLayout()
+        si_row.setContentsMargins(84, 0, 0, 0)
+        si_label = QtWidgets.QLabel("🔄 扫除次数:")
+        si_label.setStyleSheet("font-size:13px;")
+        self._sweep_iter_spin = SpinBox()
+        self._sweep_iter_spin.setMinimum(1)
+        self._sweep_iter_spin.setMaximum(10)
+        self._sweep_iter_spin.setValue(config.sweepIterations.value)
+        self._sweep_iter_spin.valueChanged.connect(lambda v: qconfig.set(config.sweepIterations, v))
+        self._sweep_iter_spin.setToolTip(
+            "暴力扫除的轮数。每轮将上一轮去水印后的视频再次作为输入，\n"
+            "反复执行完整修复流水线，逐步磨除顽固残留。\n"
+            "• 1轮 = 标准扫除\n"
+            "• 2~3轮 = 推荐值，可清除大部分顽固水印\n"
+            "• 4~5轮 = AI极速变形水印\n"
+            "处理时间 = 轮数 × 单轮时间"
+        )
+        si_row.addWidget(si_label)
+        si_row.addWidget(self._sweep_iter_spin)
+        si_row.addStretch()
+        si_w = QtWidgets.QWidget()
+        si_w.setLayout(si_row)
+        si_w.setFixedHeight(30)
+        wm_section.addWidget(si_w)
+
         card.addWidget(wm_section)
 
         # ═══════════════════════════════════════════
@@ -925,6 +1034,48 @@ class HomeInterface(QWidget):
                 parent.switchTo(parent.advancedSettingInterface)
             except Exception:
                 pass
+
+    def _toggle_sweep_mode(self):
+        """开关多循环暴力扫除模式"""
+        from qfluentwidgets import qconfig
+        enabled = not config.sweepModeEnabled.value
+        qconfig.set(config.sweepModeEnabled, enabled)
+        self._sweep_btn.setChecked(enabled)
+        self._update_sweep_btn_style()
+        if enabled:
+            iters = config.sweepIterations.value
+            InfoBar.success(
+                "多循环暴力扫除 已开启",
+                f"变形自适应遮罩 · RGB密度聚类 · {iters}轮循环扫除",
+                duration=3000, parent=self
+            )
+        else:
+            InfoBar.info(
+                "多循环暴力扫除 已关闭",
+                "恢复为标准处理模式",
+                duration=2000, parent=self
+            )
+
+    def _update_sweep_btn_style(self):
+        """更新扫除按钮的开关样式"""
+        on = config.sweepModeEnabled.value
+        if on:
+            iters = config.sweepIterations.value
+            self._sweep_btn.setText(f"🟢 多循环暴力扫除(开×{iters})")
+            self._sweep_btn.setStyleSheet("""
+                PushButton { background-color: #2d7d2d; color: white;
+                             border: 2px solid #4CAF50; border-radius: 4px;
+                             font-weight: bold; padding: 2px 8px; }
+                PushButton:hover { background-color: #3a9a3a; }
+            """)
+        else:
+            self._sweep_btn.setText("🔴 多循环暴力扫除 (关)")
+            self._sweep_btn.setStyleSheet("""
+                PushButton { background-color: #5a1a1a; color: #ccc;
+                             border: 2px solid #e81123; border-radius: 4px;
+                             padding: 2px 8px; }
+                PushButton:hover { background-color: #7a2222; }
+            """)
 
     def on_scroll_change(self, value):
         """监控滚动条位置变化"""

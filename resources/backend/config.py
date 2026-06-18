@@ -166,6 +166,24 @@ class Config(QConfig):
     watermarkRegionFullSweepEnabled = ConfigItem("Watermark", "RegionFullSweepEnabled", False, BoolValidator())
     # 强制清理区域水印：文字帧前后N秒内，强制用处理模型重绘整个文字区域
     watermarkForceRegionInpaintEnabled = ConfigItem("Watermark", "ForceRegionInpaintEnabled", False, BoolValidator())
+    # 跟踪浮动水印
+    watermarkTrackFloating = ConfigItem("Watermark", "TrackFloating", False, BoolValidator())
+    # 强力去水印模式：增加 mask 膨胀和清扫强度
+    watermarkAggressiveMode = ConfigItem("Watermark", "AggressiveMode", False, BoolValidator())
+    # 强制全帧遮罩：在用户框选的区域上，对所有帧强制生成遮罩（不依赖OCR检测）
+    forceSubAreaMaskAllFrames = ConfigItem("Inpaint", "ForceSubAreaMaskAllFrames", False, BoolValidator())
+    # 时序中值滤波：对遮罩区域做跨帧中值滤波，消除变色/变形文字
+    temporalMedianFilter = ConfigItem("Inpaint", "TemporalMedianFilter", False, BoolValidator())
+    # 时序滤波窗口大小（帧数）
+    temporalMedianWindow = RangeConfigItem("Inpaint", "TemporalMedianWindow", 15, RangeValidator(3, 61))
+    # 修复后处理锐化强度 (0-100)
+    postSharpenStrength = RangeConfigItem("Inpaint", "PostSharpenStrength", 40, RangeValidator(0, 100))
+    # 纹理传输修复强度 (0=关闭, 100=最大)
+    textureTransferStrength = RangeConfigItem("Inpaint", "TextureTransferStrength", 0, RangeValidator(0, 100))
+    # 尝试扫除模式：强力去除半透明水印，使用精确遮罩 + 时序滤波 + 零膨胀
+    sweepModeEnabled = ConfigItem("Inpaint", "SweepModeEnabled", False, BoolValidator())
+    # 扫除重复次数：将输出视频再次作为输入反复扫除，逐步清除顽固水印
+    sweepIterations = RangeConfigItem("Inpaint", "SweepIterations", 1, RangeValidator(1, 10))
     
     # 启动时检查应用更新
     checkUpdateOnStartup = ConfigItem("Main", "CheckUpdateOnStartup", True, BoolValidator())
@@ -176,11 +194,14 @@ class Config(QConfig):
     # ============ UI 折叠状态持久化 ============
     removalCardCollapsed = ConfigItem("UI", "RemovalCardCollapsed", False, BoolValidator())
     extractCardCollapsed = ConfigItem("UI", "ExtractCardCollapsed", False, BoolValidator())
-    watermarkSectionCollapsed = ConfigItem("UI", "WatermarkSectionCollapsed", True, BoolValidator())
+    watermarkSectionCollapsed = ConfigItem("UI", "WatermarkSectionCollapsed", False, BoolValidator())
 
     # ============ 字幕提取模式 ============
     subtitleExtractMode = OptionsConfigItem("SubtitleExtract", "Mode", "row",
         OptionsValidator(["row", "column", "float"]))
+    # ============ 启动弹窗 ============
+    skipStartupDialog = ConfigItem("UI", "SkipStartupDialog", False, BoolValidator())
+    startupDonateCount = ConfigItem("UI", "StartupDonateCount", 0, RangeValidator(0, 99))
 
 CONFIG_FILE = 'config/config.json'
 config = Config()
