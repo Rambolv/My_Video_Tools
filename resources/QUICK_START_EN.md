@@ -59,7 +59,7 @@ Best for: Static subtitles at video bottom/top
 
 ### 2️⃣ Multi-Sweep Mode (for AI Watermarks)
 
-> For **white semi-transparent deforming watermarks** (Doubao AI, etc.)
+> For **white semi-transparent deforming watermarks** on AI-generated videos
 
 How to use:
 ```

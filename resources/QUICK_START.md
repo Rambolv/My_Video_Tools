@@ -59,7 +59,7 @@ docker run -it eritpchy/video-subtitle-remover:1.4.0-cpu \
 
 ### 2️⃣ 多循环暴力扫除（专治AI水印）
 
-> 针对豆包等AI生成视频的**白色半透明变形水印**
+> 针对AI生成视频的**白色半透明变形水印**
 
 操作步骤：
 ```
