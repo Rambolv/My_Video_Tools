@@ -40,12 +40,12 @@ This project is a deep fork of [**YaoFANGUK/video-subtitle-remover**](https://gi
 ### New / Improved Features in This Fork
 
 #### 🚀 Core Algorithm Enhancements
-- **6 Inpainting Engines**: STTN-Auto / STTN-Det / ProPainter / E2FGVI / LaMa / OpenCV, fully integrated
-- **8 Detection Models**: PP-OCRv4 Server/Mobile, PP-OCRv5 Server/Mobile, SAM2-Tiny/Small/Base/Large
 - **Processing Depth Slider**: 0-100 continuous adjustment, real-time interpolation of ALL model parameters (mask dilation, timeline, reference frames, etc.)
-- **Multi-Sweep Mode**: Targeted at AI-generated rapidly changing/deforming logo watermarks — deformation-adaptive mask + RGB clustering + multi-pass progressive removal
+- **Multi-Sweep Mode**: Aggressive removal for AI-generated rapidly changing/deforming logo watermarks — deformation-adaptive mask + RGB clustering + strong temporal filtering + multi-pass progressive removal
 - **Watermark Template Matching**: Template capture, rotation/scale matching, feature matching, color propagation, power sweep (temporal difference), force region inpaint
-- **E2FGVI High-Quality Inpainting**: CVPR 2022 flow-guided video inpainting, supports arbitrary resolution (HQ), requires 48GB+ VRAM
+- **ProPainter / E2FGVI Engines**: Added ProPainter (high quality/high VRAM) and E2FGVI (CVPR 2022, 48GB+ VRAM) inpainting algorithms
+- **SAM2 Detection Models**: Added SAM2-Tiny/Small/Base/Large segmentation models alongside PaddleOCR
+- **PP-OCRv5 Support**: Upgraded to PP-OCRv5 Server/Mobile for latest OCR accuracy
 
 #### 📝 Subtitle Extraction System
 - **Full Pipeline Subtitle Extraction**: Automated PaddleOCR-based extraction
