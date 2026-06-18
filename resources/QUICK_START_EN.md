@@ -15,7 +15,6 @@
 | **No dedicated GPU** | `vsr-windows-cpu.7z` |
 
 **Download Links:**
-- ☁️ Baidu Pan: [Download](https://pan.baidu.com/s/1zR6CjRztmOGBbOkqK8R1Ng?pwd=vsr1) Code: `vsr1`
 - ☁️ Google Drive: [Download](https://drive.google.com/drive/folders/1NRgLNoHHOmdO4GxLhkPbHsYfMOB_3Elr?usp=sharing)
 
 > 💡 Not sure which GPU you have? Press `Win+R`, type `dxdiag`, check the "Display" tab.

@@ -63,6 +63,7 @@ resources/design/*.pdf
 
 # VRAM records (auto-generated)
 resources/config/vram_records.json
+resources/backend/config/vram_records.json
 
 # PaddleOCR auto-download
 ~/.paddleocr/

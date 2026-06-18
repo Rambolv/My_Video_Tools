@@ -12,7 +12,6 @@ https://github.com/MCG-NKU/E2FGVI
 
 模型下载：
 E2FGVI-HQ: https://drive.google.com/file/d/10wGdKSUOie0XmCr8SQ2A2FeDe-mfn5w3
-百度网盘: https://pan.baidu.com/s/1jfm1oFU1eIy-IRfuHP8YXw?pwd=ssb3
 
 下载后放置到: backend/E2FGVI/release_model/E2FGVI-HQ-CVPR22.pth
 """
