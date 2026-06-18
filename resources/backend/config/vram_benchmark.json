@@ -1,0 +1,21 @@
+{
+  "timestamp": "2026-06-17 02:10:54",
+  "gpu_name": "NVIDIA GeForce RTX 4090",
+  "gpu_vram_gb": 24.0,
+  "models": {
+    "lama": 0.0,
+    "sttn-auto": 0.0,
+    "sttn-det": 0.0,
+    "propainter": 0.11,
+    "e2fgvi": 0.31,
+    "SAM2-Tiny": 0.0,
+    "SAM2-Small": 0.0,
+    "SAM2-Base": 0.0,
+    "SAM2-Large": 0.0,
+    "PP-OCRv4-Server": 0.0,
+    "PP-OCRv4-Mobile": 0.0,
+    "PP-OCRv5-Server": 0.0,
+    "PP-OCRv5-Mobile": 0.0,
+    "opencv": 0.0
+  }
+}

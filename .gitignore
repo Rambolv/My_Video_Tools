@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+
+# Virtual Environment
+venv/
+.venv/
+Python/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Logs
+resources/configs/logs/
+*.log
+
+# Config (user-specific, keep template)
+resources/config/config.json
+
+# Models (large binary files)
+resources/backend/models/**/*.pth
+resources/backend/models/**/*.onnx
+resources/backend/models/**/*.pdmodel
+resources/backend/models/**/*.pdiparams
+resources/backend/models/**/*.pdopt
+!resources/backend/models/**/inference.onnx
+!resources/backend/models/**/*.txt
+
+# VRAM records (auto-generated)
+resources/config/vram_records.json
+
+# PaddleOCR auto-download
+~/.paddleocr/
+
+# Test files
+_test_*
