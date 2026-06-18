@@ -1,223 +1,103 @@
 <#
 .SYNOPSIS
-    VSR Minimal Package Builder
-    Creates a minimal Windows pre-compiled package without AI models.
-    Models will be auto-downloaded on first launch.
+    VSR 源码包构建工具 - 仅打包源代码（不含运行环境+模型）
 
 .DESCRIPTION
-    This script creates a minimal VSR package by:
-    1. Bundling the Python interpreter + all pip dependencies
-    2. Bundling the source code (without model files)
-    3. Excluding: models/, large design assets, test files, dev artifacts
-    4. Outputting a .7z archive for GitHub Releases
+    与旧版不同，本脚本只打包 Python 源代码文件。
+    Python 解释器和 AI 模型由 setup_windows.ps1 自动下载。
 
-    Prerequisites:
-    - 7-Zip installed (https://7-zip.org/)
-    - Run from project root directory
-
-    Usage:
+    使用方法:
         powershell -ExecutionPolicy Bypass -File scripts\build_minimal_package.ps1
 
-    Output:
-        builds\VSR-Minimal-v1.4.0-windows.7z
+    输出:
+        builds\VSR-Source-v1.4.0.7z
 #>
 
 param(
-    [Parameter(Mandatory = $false)]
     [string]$Version = "1.4.0",
-
-    [Parameter(Mandatory = $false)]
-    [string]$OutputDir = "builds",
-
-    [Parameter(Mandatory = $false)]
-    [switch]$SkipPython = $false
+    [string]$OutputDir = "builds"
 )
 
-# ── Colors ──
-$Green = "Green"
-$Yellow = "Yellow"
-$Red = "Red"
-$Cyan = "Cyan"
+$Green = "Green"; $Yellow = "Yellow"; $Red = "Red"; $Cyan = "Cyan"
+function Write-Color($C, $M) { Write-Host $M -ForegroundColor $C }
 
-function Write-Color($Color, $Message) {
-    Write-Host $Message -ForegroundColor $Color
-}
-
-# ── Header ──
 Clear-Host
-Write-Color $Cyan "╔══════════════════════════════════════════════╗"
-Write-Color $Cyan "║     VSR Minimal Package Builder v$Version    ║"
-Write-Color $Cyan "╚══════════════════════════════════════════════╝"
+Write-Color $Cyan "================================================"
+Write-Color $Cyan "  VSR Source Package Builder v$Version"
+Write-Color $Cyan "================================================"
 Write-Host ""
 
-# ── Determine project root ──
 $ScriptPath = $PSScriptRoot
-$ProjectRoot = Resolve-Path "$ScriptPath\.."
+$ProjectRoot = Resolve-Path "$ScriptPath/.."
 Set-Location $ProjectRoot
-Write-Color $Green "📂 Project Root: $ProjectRoot"
+Write-Color $Green "[OK] Root: $ProjectRoot"
 
-# ── Check dependencies ──
-$7zPath = "C:\Program Files\7-Zip\7z.exe"
-if (-not (Test-Path $7zPath)) {
-    $7zPath = "C:\Program Files\7-Zip\7z.exe"
-}
-if (-not (Test-Path $7zPath)) {
-    $7zPath = Get-Command "7z" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
-}
-if (-not $7zPath) {
-    Write-Color $Red "❌ 7-Zip not found. Please install 7-Zip first (https://7-zip.org/)"
-    Write-Color $Yellow "   Or ensure 7z.exe is in your PATH"
-    exit 1
-}
-Write-Color $Green "✅ 7-Zip: $7zPath"
+$7zPath = Get-Command "7z" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
+if (-not $7zPath) { $7zPath = "C:\Program Files\7-Zip\7z.exe" }
+if (-not (Test-Path $7zPath)) { Write-Color $Red "[ERR] 7-Zip not found"; exit 1 }
+Write-Color $Green "[OK] 7-Zip: $7zPath"
 
-# ── Check Python directory exists ──
-$PythonDir = "$ProjectRoot\Python"
-if (-not (Test-Path $PythonDir)) {
-    Write-Color $Red "❌ Python directory not found: $PythonDir"
-    Write-Color $Yellow "   Please ensure the bundled Python environment exists."
-    exit 1
-}
-Write-Color $Green "✅ Python Environment: $PythonDir"
-
-# ── Create output directory ──
-$OutputPath = "$ProjectRoot\$OutputDir"
+$OutputPath = "$ProjectRoot/$OutputDir"
 New-Item -ItemType Directory -Force -Path $OutputPath | Out-Null
-Write-Color $Green "📁 Output Directory: $OutputPath"
 
-# ── Package name ──
-$ArchiveName = "VSR-Minimal-v${Version}-windows"
-$ArchiveFile = "$OutputPath\${ArchiveName}.7z"
-Write-Color $Cyan "📦 Package: ${ArchiveName}.7z"
+$ArchiveName = "VSR-Source-v$Version"
+$ArchiveFile = "$OutputPath/$ArchiveName.7z"
+Write-Color $Cyan "Package: $ArchiveName.7z"
+Remove-Item $ArchiveFile -Force -ErrorAction SilentlyContinue
+Write-Host ""
+Write-Color $Yellow "Packaging source code only..."
 
-# ── Build file list ──
-Write-Color $Yellow "`n📋 Building file list..."
+# Create staging dir
+$StageDir = "$env:TEMP\vsr-package-$Version"
+if (Test-Path $StageDir) { Remove-Item $StageDir -Recurse -Force }
+New-Item -ItemType Directory -Force -Path $StageDir | Out-Null
+New-Item -ItemType Directory -Force -Path "$StageDir\resources\backend" | Out-Null
+Write-Host "  -> Copying source files..."
 
-# Files/directories to include
-$IncludeDirs = @(
-    "Python",
-    "resources"
-)
-
-# Files in project root
-$IncludeFiles = @(
-    "使用兼容模式运行.cmd",
-    "Debug-进入虚拟环境.cmd",
-    "README.md",
-    "README_en.md",
-    "LICENSE"
-)
-
-# Patterns to EXCLUDE from resources/
-$ExcludePatterns = @(
-    # Model files - will be auto-downloaded
-    "resources\backend\models\*",
-    # E2FGVI (third-party, large)
-    "resources\backend\E2FGVI\*",
-    # Logs
-    "configs\logs\*",
-    # Test files
-    "resources\test\*",
-    # Design assets (large GIFs)
-    "resources\design\*.gif",
-    "resources\design\*.jpg",
-    "resources\design\*.pdf",
-    # VRAM records
-    "resources\backend\config\vram_records.json",
-    # Watermark template images
-    "resources\backend\models\watermark_templates\*",
-    # Backups
-    "BACKUP_*",
-    # Build artifacts
-    "_test_output\*",
-    "builds\*",
-    "opt\*",
-    # Git
-    ".git\*",
-    ".gitignore",
-    # Dev configs
-    ".claude\*",
-    "configs\*",
-    # FFmpeg binaries
-    "resources\backend\ffmpeg\*",
-    # SAM2 model (large)
-    "resources\backend\sam2\*"
-)
-
-# ── Start packaging ──
-Write-Color $Yellow "`n🔨 Creating minimal package (this may take a while)...`n"
-
-# Temporarily rename models dir to speed up (exclude from scan)
-$ModelsDir = "$ProjectRoot\resources\backend\models"
-$ModelsBackup = "$ProjectRoot\resources\backend\models_backup"
-if (Test-Path $ModelsDir) {
-    Rename-Item -Path $ModelsDir -NewName "models_backup" -Force
-    Write-Color $Yellow "   Temporarily excluded models directory"
-}
-
-try {
-    # Build 7z command arguments
-    $7zArgs = @(
-        "a",                                      # Add to archive
-        "-t7z",                                   # 7z format
-        "-mx=5",                                  # Compression level (5=normal)
-        "-mfb=64",                                # Number of fast bytes
-        "-md=32m",                                # Dictionary size
-        "-ms=on",                                 # Solid archive
-        "-mmt=on",                                # Multi-threading
-        "`"$ArchiveFile`"",                        # Output file
-        "-xr!`$RECYCLE.BIN",                      # Exclude recycle bin
-        "-xr!Thumbs.db",                          # Exclude thumbs
-        "-xr!.DS_Store",                          # Exclude macOS files
-        "-xr!__pycache__",                        # Exclude Python cache
-        "-xr!*.pyc",                              # Exclude compiled Python
-        "-xr!*.pyo",                              # Exclude optimized Python
-        "-xr!*.egg-info",                         # Exclude egg info
-        "-xr!*.log",                              # Exclude logs
-        "-xr!vram_records.json",                  # Exclude VRAM records
-        "-xr!*.pth",                              # Exclude model files (safety)
-        "-xr!*.onnx"                              # Exclude ONNX models (safety)
-    )
-
-    # Add include paths
-    foreach ($dir in $IncludeDirs) {
-        if (Test-Path $dir) {
-            $7zArgs += "`"$dir`""
+# Backend Python source only (exclude: models/sam2/ffmpeg/E2FGVI)
+$backendItems = @("main.py", "config.py", "__init__.py", "inpaint", "tools", "scenedetect", "interface")
+foreach ($item in $backendItems) {
+    $src = "$ProjectRoot\resources\backend\$item"
+    $dst = "$StageDir\resources\backend\$item"
+    if (Test-Path $src) {
+        if (Test-Path $src -PathType Container) {
+            Copy-Item $src $dst -Recurse -Force -ErrorAction SilentlyContinue
+        } else {
+            Copy-Item $src $dst -Force -ErrorAction SilentlyContinue
         }
     }
-    foreach ($file in $IncludeFiles) {
-        if (Test-Path $file) {
-            $7zArgs += "`"$file`""
-        }
-    }
-
-    # Execute 7z
-    $arguments = $7zArgs -join " "
-    $process = Start-Process -FilePath $7zPath -ArgumentList $arguments -NoNewWindow -Wait -PassThru
-
-    if ($process.ExitCode -eq 0) {
-        # Get file size
-        $fileSize = (Get-Item $ArchiveFile).Length / 1GB
-        Write-Color $Green "`n✅ Package created successfully!"
-        Write-Color $Cyan "   📦 $ArchiveName.7z"
-        Write-Color $Cyan "   💾 Size: $([math]::Round($fileSize, 2)) GB"
-        Write-Color $Cyan "   📁 Path: $ArchiveFile"
-    } else {
-        Write-Color $Red "`n❌ 7-Zip exited with code $($process.ExitCode)"
-    }
 }
-catch {
-    Write-Color $Red "`n❌ Error: $_"
-}
-finally {
-    # Restore models directory
-    if (Test-Path "$ProjectRoot\resources\backend\models_backup") {
-        Rename-Item -Path "$ProjectRoot\resources\backend\models_backup" -NewName "models" -Force
-        Write-Color $Yellow "   Restored models directory"
-    }
+Copy-Item "$ProjectRoot\resources\backend\config" "$StageDir\resources\backend\config" -Recurse -Force -ErrorAction SilentlyContinue
+Copy-Item "$ProjectRoot\resources\ui" "$StageDir\resources\ui" -Recurse -Force
+Copy-Item "$ProjectRoot\resources\gui.py" "$StageDir\resources\gui.py" -Force
+Copy-Item "$ProjectRoot\resources\requirements.txt" "$StageDir\resources\requirements.txt" -Force
+Copy-Item "$ProjectRoot\config\config.json" "$StageDir\config\config.json" -Force -ErrorAction SilentlyContinue
+Copy-Item "$ProjectRoot\scripts" "$StageDir\scripts" -Recurse -Force
+Copy-Item "$ProjectRoot\docs" "$StageDir\docs" -Recurse -Force
+Copy-Item "$ProjectRoot\README.md" "$StageDir\README.md" -Force
+Copy-Item "$ProjectRoot\README_en.md" "$StageDir\README_en.md" -Force
+Copy-Item "$ProjectRoot\LICENSE" "$StageDir\LICENSE" -Force
+Get-ChildItem $StageDir -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
+
+# Create archive
+Write-Host "  -> Creating archive..."
+$7zArgs = "a -t7z -mx=7 -mfb=64 -md=64m -ms=on -mmt=on `"$ArchiveFile`" `"$StageDir\*`""
+$process = Start-Process -FilePath $7zPath -ArgumentList $7zArgs -NoNewWindow -Wait -PassThru
+Remove-Item $StageDir -Recurse -Force -ErrorAction SilentlyContinue
+
+if ($process.ExitCode -eq 0) {
+    $size = (Get-Item $ArchiveFile).Length / 1MB
+    Write-Color $Green "[OK] Package created!"
+    Write-Host "     File: $ArchiveName.7z"
+    Write-Host "     Size: $([math]::Round($size, 1)) MB"
+    Write-Host "     Path: $ArchiveFile"
+} else {
+    Write-Color $Red "[ERR] 7-Zip exited with code $($process.ExitCode)"
 }
 
-Write-Color $Yellow "`n📋 Next Steps:"
-Write-Color $Yellow "   1. Upload ${ArchiveName}.7z to GitHub Releases"
-Write-Color $Yellow "   2. Upload model files to GitHub Releases (models-v1.0 tag)"
-Write-Color $Yellow "   3. Test the minimal package on a clean Windows machine`n"
+Write-Host ""
+Write-Color $Yellow "Next Steps:"
+Write-Color $Yellow "  1. Upload $ArchiveName.7z to GitHub Releases (tag: v$Version)"
+Write-Color $Yellow "  2. Users: download -> unzip -> right-click setup_windows.ps1 -> Run with PowerShell"
+Write-Color $Yellow "  3. Setup script auto-installs Python, dependencies, and models"
+Write-Host ""
