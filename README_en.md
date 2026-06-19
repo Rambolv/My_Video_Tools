@@ -7,6 +7,7 @@
 [简体中文](README.md) | English
 
 > **VSR Modded Edition** — A deep fork of VSR v1.4.0 with extensive feature enhancements and UI refactoring.
+> Also integrates and enhances all features from the original author's VSE pre-built packages (`vse-windows-*.7z`).
 > GPU-accelerated hard-coded subtitle removal tool with both GUI and CLI interfaces.
 
 ---
@@ -17,6 +18,7 @@
 - [Features](#-features)
 - [Quick Start](#-quick-start)
 - [UI Preview](#-ui-preview)
+- [Usage Guide](#-usage-guide)
 - [Architecture](docs/ARCHITECTURE_EN.md)
 - [Feature Design](docs/FEATURES_EN.md)
 - [Changelog](docs/CHANGELOG_EN.md)
@@ -27,6 +29,7 @@
 ## 📖 Project Origin
 
 This project is a deep fork of [**YaoFANGUK/video-subtitle-remover**](https://github.com/YaoFANGUK/video-subtitle-remover) (VSR v1.4.0), with extensive feature enhancements and UI refactoring.
+It also integrates and enhances all features from the original author's VSE pre-built packages (`vse-windows-*.7z`), including Multi-Sweep mode, watermark template matching, adaptive masking, and more.
 
 ### Original Project Info
 
@@ -38,6 +41,8 @@ This project is a deep fork of [**YaoFANGUK/video-subtitle-remover**](https://gi
 | **Original License** | Apache License 2.0 |
 
 ### New / Improved Features in This Fork
+
+> This modded edition fully integrates and enhances all advanced features from the original author's VSE pre-built packages (Multi-Sweep mode, watermark template matching, etc.), while adding major upgrades such as ProPainter/E2FGVI inpainting engines, PP-OCRv5 detection models, SAM2 segmentation models, and more.
 
 #### 🚀 Core Algorithm Enhancements
 - **Processing Depth Slider**: 0-100 continuous adjustment, real-time interpolation of ALL model parameters (mask dilation, timeline, reference frames, etc.)
@@ -197,7 +202,151 @@ docker run -it --name vsr --gpus all eritpchy/video-subtitle-remover:1.4.0-cuda1
 
 ---
 
-## 📁 Project Structure
+## � Usage Guide
+
+### 🎬 Video Subtitle Removal — Basic Workflow
+
+#### 1️⃣ Import a Video
+
+- Click the **「Open」** button and select a video file (supports MP4, FLV, WMV, AVI, and other common formats)
+- **Multi-select** is supported — add multiple videos to the task list at once
+- The video automatically plays in the left preview area, and each file's status appears in the task list
+
+#### 2️⃣ Locate Subtitle Position
+
+- Drag the **progress slider** below the video to quickly browse and find frames where subtitles appear
+- **Keyboard shortcuts**:
+  - `←` / `→`: Jump ±1 second
+  - `Ctrl` + `←` / `Ctrl` + `→`: Jump ±5 seconds
+  - `Shift` + `←` / `Shift` + `→`: Jump ±1 frame
+
+#### 3️⃣ Select the Removal Area
+
+- **Right-click** on the video to open the context menu
+- Select **「Add Selection」** → **Left-click and drag** over the subtitle area to draw a green selection box
+- **Multiple selections** are supported: select different subtitle or watermark areas (e.g., top-left logo + bottom subtitles)
+- **Adjust selection**: Drag the edges of an existing box to resize, or drag inside to move
+- **Delete selection**: Right-click on a box → "Delete Selection", or press `Delete`
+- Selections are stored as **relative coordinates** and persist across frame changes
+
+> 💡 **Tip**: If subtitle positions are fixed, select once and the area stays active across all frames — no need to re-select.
+
+#### 4️⃣ Configure Removal Parameters
+
+Configure the core settings in the right-side function panel:
+
+| Parameter | Description |
+|-----------|-------------|
+| **Inpaint Mode** | Choose AI inpainting engine: STTN (fast), ProPainter (high quality), E2FGVI (extreme), LaMa (cartoon-friendly), OpenCV (traditional) |
+| **Detection Model** | Choose OCR detection: PP-OCRv4/v5 (text detection), SAM2 (segmentation, for irregular watermarks) |
+| **Processing Depth** | 0-100 continuous slider, real-time parameter interpolation. Higher = better quality but slower & more VRAM |
+| **HW Acceleration** | Enable GPU (CUDA) acceleration, disable to use CPU |
+| **Concurrency** | Process multiple videos simultaneously (1-8). Options exceeding VRAM are auto-marked with red ⚠️ |
+
+#### 5️⃣ Set A-B Sections (Optional)
+
+To process only a **specific segment** of the video (instead of the full length):
+
+- Navigate to the start frame, press `[` to mark the start point
+- Navigate to the end frame, press `]` to mark the end point
+- White segment markers appear below the progress bar
+- Press `\` (backslash) to delete the current segment
+- Multiple A-B segments are supported; if none are set, the entire video is processed
+
+#### 6️⃣ Start Processing
+
+- Click the **「Start」** button to begin processing
+- During processing, you can monitor in real-time:
+  - **Left preview**: Side-by-side comparison of original (left) vs. inpainted (right) frames
+  - **「Output Log」Tab**: Detailed processing log
+  - **「Task List」Tab**: Progress percentage for each task
+- Click **「Stop」** to terminate processing at any time
+- Output files are saved in the original video directory (or a custom output directory), with `_no_sub` appended to the filename
+
+---
+
+### 🎯 Advanced Watermark Detection
+
+Expand the "Custom Watermark" collapsible section to use these advanced features:
+
+#### Watermark Template Capture
+
+1. Click **「Capture Watermark」** to enter capture mode
+2. **Left-click and drag** on the video to frame the watermark area (blue dashed box)
+3. Release the mouse to confirm — the template is saved automatically
+4. Subsequent processing will use feature matching against the template
+
+#### Toggle Options
+
+| Switch | Description |
+|--------|-------------|
+| **Aggressive Mode** | Mask dilation +50%, for stubborn watermark residue (red) |
+| **Force Full-Frame Mask** | Force mask generation on ALL frames within your selected area, bypassing OCR detection (orange) |
+| **Temporal Median Filter** | Cross-frame median filtering on mask areas to eliminate color shift/deformation/flickering text (blue) |
+
+#### Multi-Sweep Mode
+
+For **rapidly changing/deforming AI-generated logo watermarks**:
+
+1. Click the **「Multi-Sweep」** button to enable (turns green)
+2. Set **iteration count** (1-10 rounds); 2-3 recommended, 4-5 for heavy deformation
+3. Each pass: deformation-adaptive mask → RGB density clustering → model inference → bright residue suppression → adaptive blending
+4. Each pass uses the previous output as input, progressively removing stubborn artifacts
+5. Processing time = iterations × single-pass time; output filename includes iteration info
+
+---
+
+### 📝 Subtitle Extraction
+
+#### One-Click Extraction
+
+1. After opening a video, select the **extraction mode** in the right panel:
+   - **Row mode**: Group by Y-axis, suitable for horizontal subtitles (default)
+   - **Column mode**: Group by X-axis, suitable for vertical text
+   - **Float mode**: Position-based clustering for dynamic/floating watermarks
+2. Click **「Extract」**
+3. Results appear in the right preview area and the bottom "Subtitle Text" tab
+
+#### Export Subtitles
+
+- **「Export TXT」**: Export as plain text (.txt), no timestamps
+- **「Export SRT」**: Export as standard subtitle file (.srt) with timestamps
+
+#### Joint Proofreading
+
+Extract with multiple OCR models and merge for highest accuracy:
+
+1. Expand **「Joint Proofreading」** section
+2. Select three different detection models (e.g., PP-OCRv4 Server, PP-OCRv5 Server, SAM2-Base)
+3. Click **「Execute」** — the system runs all three models and merges results
+4. Results are displayed automatically
+
+---
+
+### ⚙️ Advanced Settings
+
+Click **「⚙ Advanced Settings」** to open the advanced settings page, where you can adjust:
+
+- **Subtitle Detection**: Detection threshold, minimum text height, mask expansion, etc.
+- **STTN Inpainting**: Frame interval, reference frames, dilation factor, etc.
+- **ProPainter**: Subgrid size, step size, downsampling factor, etc.
+- **System Settings**: Output directory, language, theme (light/dark), update check, etc.
+
+---
+
+### 🧠 VRAM Management
+
+Expand the "VRAM Estimation & Monitoring" collapsible section:
+
+- **GPU VRAM Info**: Auto-detects and displays GPU model and total VRAM
+- **Current Config Estimate**: Real-time VRAM estimation based on selected models and concurrency
+- **VRAM Monitoring**: When enabled, automatically collects GPU memory peaks during processing
+- **Model VRAM Reference Table**: Built-in baselines for 14 models, real collected values preferred
+- **Concurrency Red-Flag**: Options exceeding VRAM are auto-marked with red ⚠️
+
+---
+
+## �📁 Project Structure
 
 ```
 resources/
