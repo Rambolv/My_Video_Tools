@@ -4,17 +4,19 @@
 """
 from __future__ import annotations
 from typing import Dict, Tuple, Optional
-from backend.tools.constant import InpaintMode, SubtitleDetectMode
+from backend.tools.constant import InpaintMode, SubtitleDetectMode, EnhancementMode
 from backend.tools.hardware_accelerator import HardwareAccelerator
 
 # ============ 各模型在 1080p 下的基准显存（GB），内置默认值 ============
 _MODEL_VRAM_BASELINE_1080P: Dict[str, float] = {
+    # --- 修复模型 ---
     InpaintMode.OPENCV.value:     0.3,
     InpaintMode.STTN_AUTO.value:  2.8,
     InpaintMode.STTN_DET.value:   2.5,
     InpaintMode.LAMA.value:       2.2,
     InpaintMode.E2FGVI.value:     48.0,   # 需要 48GB+ 显存
     InpaintMode.PROPAINTER.value: 13.0,
+    # --- 检测模型 ---
     SubtitleDetectMode.PP_OCRv4_SERVER.value:  0.8,
     SubtitleDetectMode.PP_OCRv4_MOBILE.value:  0.4,
     SubtitleDetectMode.PP_OCRv5_SERVER.value:  1.0,
@@ -23,6 +25,13 @@ _MODEL_VRAM_BASELINE_1080P: Dict[str, float] = {
     SubtitleDetectMode.SAM2_SMALL.value:  5.0,
     SubtitleDetectMode.SAM2_BASE.value:   10.0,
     SubtitleDetectMode.SAM2_LARGE.value:  18.0,
+    # --- 超分辨率 (Real-ESRGAN) ---
+    EnhancementMode.SR_ANIME.value:    2.0,
+    EnhancementMode.SR_X4PLUS.value:   3.5,
+    EnhancementMode.SR_X2PLUS.value:   2.5,
+    EnhancementMode.SR_GENERAL.value:  2.0,
+    # --- 帧插值 (RIFE) ---
+    EnhancementMode.FI_RIFE.value:     1.8,
 }
 
 # 缓存：由 vram_records.json 加载的真实工作峰值
@@ -80,11 +89,11 @@ def get_model_danger_flags() -> Dict[str, bool]:
     return flags
 
 # 处理深度对显存的附加系数（连续值 0-100）
-_DEPTH_VRAM_FACTOR_MIN = 0.55   # depth=0 时
-_DEPTH_VRAM_FACTOR_MAX = 2.00    # depth=100 时
+_DEPTH_VRAM_FACTOR_MIN = 0.60   # depth=0 时
+_DEPTH_VRAM_FACTOR_MAX = 1.50   # depth=100 时（比原2.0更温和）
 # 水印检测在检测模型基础上的额外显存开销（GB，连续值 0-100）
 _WATERMARK_OVERHEAD_MIN = 0.0    # depth=0
-_WATERMARK_OVERHEAD_MAX = 3.5    # depth=100
+_WATERMARK_OVERHEAD_MAX = 2.5    # depth=100
 
 # 分辨率缩放系数（以 1080p = 1920×1080 = 2,073,600 像素为基准）
 def _resolution_factor(w: int, h: int) -> float:
@@ -100,13 +109,16 @@ def estimate_model_vram(
     video_height: int = 1080,
     concurrent_tasks: int = 1,
     processing_depth: int = 50,
+    sr_mode: str = "",
+    fi_enabled: bool = False,
 ) -> Dict[str, float]:
     """
-    估算指定配置的总显存占用。
+    估算指定配置的总显存占用（含超分辨率 + 帧插值）。
     返回:
         {
             "inpaint_gb": 修复模型显存,
             "detect_gb": 检测模型显存,
+            "enhance_gb": 增强模型显存（超分+插帧）,
             "total_gb": 总计,
             "gpu_vram_gb": GPU 物理显存,
             "over_limit": 是否超出,
@@ -116,7 +128,6 @@ def estimate_model_vram(
     gpu_vram = accel.get_gpu_vram_gb()
 
     res_factor = _resolution_factor(video_width, video_height)
-    # 连续深度 0-100 → 插值系数
     d_norm = processing_depth / 100.0 if isinstance(processing_depth, (int, float)) else 0.5
     depth_factor = _DEPTH_VRAM_FACTOR_MIN + (_DEPTH_VRAM_FACTOR_MAX - _DEPTH_VRAM_FACTOR_MIN) * d_norm
     watermark_overhead = _WATERMARK_OVERHEAD_MIN + (_WATERMARK_OVERHEAD_MAX - _WATERMARK_OVERHEAD_MIN) * d_norm
@@ -124,26 +135,41 @@ def estimate_model_vram(
     base_inpaint = get_model_vram_baseline(inpaint_mode)
     base_detect = get_model_vram_baseline(detect_mode)
 
-    # 模型显存 = 基准 × 分辨率系数 × 深度系数
     model_inpaint = base_inpaint * res_factor * depth_factor
     model_detect = base_detect * res_factor + watermark_overhead * res_factor
-    # 单任务：检测和修复顺序执行，取最大值 + 10%开销
-    # 多任务并发：模型权重共享，每个额外任务增加约40%中间张量
+
+    # ---- 增强模型显存 ----
+    model_enhance = 0.0
+    if sr_mode:
+        # 检查是 Real-ESRGAN 还是 waifu2x
+        if sr_mode.startswith("waifu2x-"):
+            model_enhance += 1.0 * res_factor  # waifu2x-Vulkan，几乎不耗显存
+        elif sr_mode in _MODEL_VRAM_BASELINE_1080P:
+            sr_base = get_model_vram_baseline(sr_mode)
+            model_enhance += sr_base * res_factor
+    if fi_enabled:
+        fi_base = get_model_vram_baseline(EnhancementMode.FI_RIFE.value)
+        model_enhance += fi_base * res_factor
+
+    # ---- 综合估算 ----
+    # 注意: 主流程(修复+检测)和增强(超分+插帧)是串行的，不叠加
+    # 主流程峰值取修复和检测中较大者 + 并发附加
+    main_peak = max(model_inpaint, model_detect)
     if concurrent_tasks <= 1:
-        total = max(model_inpaint, model_detect) * 1.10
+        total = main_peak * 1.10
     else:
-        # 首任务 = max(inpaint, detect)，后续任务各加 40%
-        peak_model = max(model_inpaint, model_detect)
-        secondary_model = min(model_inpaint, model_detect)
-        total = peak_model + secondary_model * 0.5  # 第二个模型部分加载开销
-        total += peak_model * (concurrent_tasks - 1) * 0.40  # 额外并发任务开销
+        # 多任务时，峰值任务全占，从任务共享部分显存
+        total = main_peak + main_peak * (concurrent_tasks - 1) * 0.25
+    # 增强模型串行执行，只加一次（不乘并发数）
+    total += model_enhance
 
     return {
         "inpaint_gb": round(model_inpaint, 1),
         "detect_gb": round(model_detect, 1),
+        "enhance_gb": round(model_enhance, 1),
         "total_gb": round(total, 1),
         "gpu_vram_gb": round(gpu_vram, 1),
-        "over_limit": total > gpu_vram * 0.90,  # 留10%余量
+        "over_limit": total > gpu_vram * 0.95,
         "usage_pct": round(total / gpu_vram * 100, 0) if gpu_vram > 0 else 999,
     }
 
@@ -151,12 +177,19 @@ def estimate_model_vram(
 def get_all_model_vram_list() -> Dict[str, Dict[str, float]]:
     """
     返回所有模型在标准深度、1080p、单任务时的显存估算表（优先使用实测值）。
-    key 为模型名，value 包含 vram_gb、category（修复/检测）
+    key 为模型名，value 包含 vram_gb、category（修复/检测/增强）
     """
     result = {}
+    inpaint_values = {m.value for m in InpaintMode}
+    detect_values = {m.value for m in SubtitleDetectMode}
     for mode in _MODEL_VRAM_BASELINE_1080P:
         vram_gb = get_model_vram_baseline(mode)
-        cat = "修复" if mode in [m.value for m in InpaintMode] else "检测"
+        if mode in inpaint_values:
+            cat = "修复"
+        elif mode in detect_values:
+            cat = "检测"
+        else:
+            cat = "增强"
         result[mode] = {"vram_gb": vram_gb, "category": cat}
     return result
 

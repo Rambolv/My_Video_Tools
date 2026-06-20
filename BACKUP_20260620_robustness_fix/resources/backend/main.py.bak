@@ -29,7 +29,6 @@ from backend.inpaint.sttn_det_inpaint import STTNDetInpaint
 from backend.inpaint.lama_inpaint import LamaInpaint
 from backend.inpaint.opencv_inpaint import OpenCVInpaint
 from backend.inpaint.propainter_inpaint import PropainterInpaint
-from backend.inpaint.e2fgvi_inpaint import E2FGVIInpaint
 from backend.tools.inpaint_tools import create_mask, create_unified_mask, create_polygon_mask, batch_generator, expand_frame_ranges
 from backend.tools.model_config import ModelConfig
 from backend.tools.ffmpeg_cli import FFmpegCLI
@@ -57,9 +56,6 @@ class SubtitleRemover:
         # 视频路径
         self.video_path = vd_path
         self.video_cap = cv2.VideoCapture(get_readable_path(vd_path))
-        # 检查视频是否成功打开
-        if not self.video_cap.isOpened():
-            raise IOError(f"无法打开视频文件: {vd_path}")
         # 通过视频路径获取视频名称
         self.vd_name = Path(self.video_path).stem
         # 视频帧总数
@@ -75,14 +71,11 @@ class SubtitleRemover:
         self.video_temp_file = tempfile.NamedTemporaryFile(suffix='.mp4', delete=False)
         # 创建视频写对象
         self.video_writer = cv2.VideoWriter(get_readable_path(self.video_temp_file.name), cv2.VideoWriter_fourcc(*'mp4v'), self.fps, self.size)
-        # 检查视频写入器是否成功创建
-        if not self.video_writer.isOpened():
-            self.video_cap.release()
-            raise IOError(f"无法创建视频写入器，请检查输出目录是否可写: {self.video_temp_file.name}")
         # 输出文件名，后续在 run() 中会根据扫除次数更新后缀
         self.video_out_path = os.path.abspath(os.path.join(
             os.path.dirname(self.video_path),
             f'{self.vd_name}_no_sub.mp4'))
+        self.propainter_inpaint = None
         self.ext = os.path.splitext(vd_path)[-1]
         if self.is_picture:
             pic_dir = os.path.join(os.path.dirname(self.video_path), 'no_sub')
@@ -230,6 +223,11 @@ class SubtitleRemover:
                                                                           scene_div_points)
         del sub_detector
         gc.collect()        
+        device = self.hardware_accelerator.device if self.hardware_accelerator.has_cuda() else torch.device("cpu")
+        propainter_inpaint = PropainterInpaint(device, self.model_config.PROPAINTER_MODEL_DIR, 
+                                                 config.propainterMaxLoadNum.value,
+                                                 mask_dilation=config.propainterMaskDilates.value,
+                                                 flow_mask_dilation=config.propainterFlowMaskDilates.value)
         self.append_output(tr['Main']['ProcessingStartRemovingSubtitles'])
         index = 0
         while True:
@@ -295,7 +293,7 @@ class SubtitleRemover:
                                     inner_index += 1
                                     self.update_progress(tbar, increment=1)
                                 elif len(batch) > 1:
-                                    inpainted_frames = self.propainter_inpaint(batch, mask)
+                                    inpainted_frames = propainter_inpaint(batch, mask)
                                     for i, inpainted_frame in enumerate(inpainted_frames):
                                         self.video_writer.write(inpainted_frame)
                                         # self.append_output(f'write frame: {start_frame_no + inner_index} with mask {sub_list[index]}')
@@ -333,6 +331,13 @@ class SubtitleRemover:
         tbar.write(f'Subtitle filter_and_merge_intervals: {continuous_frame_no_list}')
         del sub_detector
         gc.collect()
+
+        device = self.hardware_accelerator.device if self.hardware_accelerator.has_cuda() else torch.device("cpu")
+        from backend.inpaint.e2fgvi_inpaint import E2FGVIInpaint
+        e2fgvi = E2FGVIInpaint(
+            device=device,
+            max_load_num=config.e2fgviMaxLoadNum.value,
+        )
 
         self.append_output(tr['Main']['ProcessingStartRemovingSubtitles'])
         start_end_map = {}
@@ -381,7 +386,7 @@ class SubtitleRemover:
                 for batch in batch_generator(frames_need_inpaint, config.e2fgviMaxLoadNum.value):
                     if len(batch) >= 1:
                         try:
-                            inpainted_frames = self.e2fgvi_inpaint(batch, mask)
+                            inpainted_frames = e2fgvi(batch, mask)
                             for inpainted_frame in inpainted_frames:
                                 self.video_writer.write(inpainted_frame)
                         except RuntimeError as e:
@@ -393,7 +398,7 @@ class SubtitleRemover:
                                 if mid >= 1:
                                     for chunk in [batch[:mid], batch[mid:]]:
                                         if chunk:
-                                            inpainted = self.e2fgvi_inpaint(chunk, mask)
+                                            inpainted = e2fgvi(chunk, mask)
                                             for f in inpainted:
                                                 self.video_writer.write(f)
                                 else:
@@ -705,7 +710,6 @@ class SubtitleRemover:
                 self.append_output("[VRAM监控] 已开启，处理完成后将记录峰值显存")
 
             oom_occurred = False
-            _inpaint_ok = True
             try:
                 if config.inpaintMode.value == InpaintMode.PROPAINTER:
                     self.propainter_mode(tbar)
@@ -726,12 +730,6 @@ class SubtitleRemover:
                     oom_occurred = True
                     self.append_output(f"❌ [VRAM监控] 显存溢出(OOM)! 当前配置可能导致爆显存")
                 raise
-            except Exception as e:
-                # 未检测到字幕等非致命错误：直接透传原视频，继续后续增强
-                err_str = str(e)
-                self.append_output(f"⚠️ 字幕去除阶段跳过: {err_str}")
-                self.append_output("  → 原视频将直接进入后续处理阶段（增强/输出）")
-                _inpaint_ok = False
             finally:
                 if vram_monitor is not None:
                     peak_gb = vram_monitor.stop()
@@ -755,28 +753,9 @@ class SubtitleRemover:
         self.video_cap.release()
         self.video_writer.release()
 
-        # 如果字幕去除失败（如无字幕），把原视频复制到输出路径
-        if not _inpaint_ok:
-            self.append_output("  → 复制原视频作为后续处理输入（无字幕去除）")
-            try:
-                self.video_temp_file.close()
-                # 用原视频覆盖临时输出文件
-                _temp_new = tempfile.NamedTemporaryFile(suffix='.mp4', delete=False)
-                _temp_new.close()
-                shutil.copy2(get_readable_path(self.video_path), _temp_new.name)
-                self.video_temp_file = tempfile.NamedTemporaryFile(suffix='.mp4', delete=False)
-                self.video_temp_file.close()
-                shutil.copy2(_temp_new.name, self.video_temp_file.name)
-                os.unlink(_temp_new.name)
-            except Exception as e:
-                self.append_output(f"  ⚠️ 复制原视频失败: {e}")
-
         # ---- 多轮扫除：将上一轮输出作为输入反复处理 ----
         sweep_iters = config.sweepIterations.value
         if config.sweepModeEnabled.value and sweep_iters > 1 and not self.is_picture:
-            # 扫除轮次使用独立的进度条，避免与主进度条冲突
-            _sweep_tbar = tqdm(total=int(self.frame_count * (sweep_iters - 1)), unit='frame', position=0, file=sys.__stdout__,
-                              desc='Sweep Passes')
             _orig_video_path = self.video_path  # 保存原始视频路径（用于最后合并音频）
             for _pass in range(1, sweep_iters):
                 self.append_output(f"\n{'='*50}")
@@ -841,8 +820,6 @@ class SubtitleRemover:
                         pass
                     self.append_output(f"  ✅ 第{_pass + 1}轮扫除完成")
 
-            # 关闭扫除进度条
-            _sweep_tbar.close()
             # 恢复原始视频路径，供后续 merge_audio_to_video 提取音频
             self.video_path = _orig_video_path
 
@@ -854,66 +831,6 @@ class SubtitleRemover:
                     os.path.dirname(self.video_path),
                     f'{self.vd_name}_{_final_iters}clean_no_sub.mp4'))
             self.append_output(f"  → 输出文件: {self.video_out_path}")
-
-            # ═══════════════════════════════════════════════════════
-            #  视频增强：超分辨率 + 帧插值
-            # ═══════════════════════════════════════════════════════
-            _enhance_enabled = (
-                config.enableSuperResolution.value or
-                config.enableFrameInterpolation.value
-            )
-            if _enhance_enabled:
-                self.append_output("")
-                self.append_output("=" * 50)
-                self.append_output("🎬 视频增强阶段")
-                self.append_output("=" * 50)
-                from backend.tools.video_enhancer import enhance_video_pipeline
-
-                # 当前去字幕后的临时文件
-                _src_path = self.video_temp_file.name
-                # 增强后输出到独立临时文件
-                _enhanced_path = os.path.abspath(
-                    tempfile.NamedTemporaryFile(suffix='_enhanced.mp4', delete=False).name
-                )
-
-                def _enhance_progress(pct, finished):
-                    if finished:
-                        self.append_output(f"  [视频增强] 进度: 100%")
-                    elif pct % 20 == 0:
-                        self.append_output(f"  [视频增强] 进度: {pct}%")
-
-                try:
-                    enhance_video_pipeline(
-                        input_path=_src_path,
-                        output_path=_enhanced_path,
-                        log_callback=lambda msg: self.append_output(msg),
-                        progress_callback=_enhance_progress,
-                    )
-                    # 用增强后的文件替换临时文件
-                    self.video_temp_file.close()
-                    try:
-                        os.unlink(_src_path)
-                    except Exception:
-                        pass
-                    self.video_temp_file = tempfile.NamedTemporaryFile(suffix='.mp4', delete=False)
-                    self.video_temp_file.close()  # 关闭句柄，仅用其路径
-                    # 用增强后文件覆盖新临时文件路径
-                    import shutil
-                    shutil.copy2(_enhanced_path, self.video_temp_file.name)
-                    try:
-                        os.unlink(_enhanced_path)
-                    except Exception:
-                        pass
-                    self.append_output("✅ 视频增强完成")
-                except Exception as e:
-                    self.append_output(f"⚠️ 视频增强失败 (不影响去字幕结果): {e}")
-                    traceback.print_exc()
-                    try:
-                        os.unlink(_enhanced_path)
-                    except Exception:
-                        pass
-                self.append_output("=" * 50)
-
             # 将原音频合并到新生成的视频文件中
             self.merge_audio_to_video()
         self.append_output(tr['Main']['FinishedProcessing'].format(self.video_out_path))
@@ -1047,9 +964,9 @@ class SubtitleRemover:
                                  "-y", "-i", self.video_path,
                                  "-acodec", "copy",
                                  "-vn", "-loglevel", "error", temp.name]
-        # 始终使用 shell=False 避免命令注入风险，路径中含空格由列表传参处理
+        use_shell = True if os.name == "nt" else False
         try:
-            subprocess.check_output(audio_extract_command, stdin=open(os.devnull), shell=False)
+            subprocess.check_output(audio_extract_command, stdin=open(os.devnull), shell=use_shell)
         except Exception as e:
             traceback.print_exc()
             self.append_output(tr['Main']['FailToExtractAudio'].format(str(e)))
@@ -1063,7 +980,7 @@ class SubtitleRemover:
                                        "-acodec", "copy",
                                        "-loglevel", "error", self.video_out_path]
                 try:
-                    subprocess.check_output(audio_merge_command, stdin=open(os.devnull), shell=False)
+                    subprocess.check_output(audio_merge_command, stdin=open(os.devnull), shell=use_shell)
                 except Exception as e:
                     traceback.print_exc()
                     self.append_output(tr['Main']['FailToMergeAudio'].format(str(e)))
@@ -1072,6 +989,7 @@ class SubtitleRemover:
                 try:
                     os.remove(temp.name)
                 except Exception:
+                    #ignore
                     pass
             self.is_successful_merged = True
         finally:
@@ -1079,7 +997,7 @@ class SubtitleRemover:
             if not self.is_successful_merged:
                 try:
                     shutil.copy2(self.video_temp_file.name, self.video_out_path)
-                except Exception as e:
+                except IOError as e:
                     self.append_output(tr['Main']['CopyFileFailed'].format(self.video_temp_file.name, self.video_out_path, str(e)))
             self.video_temp_file.close()
 
@@ -1092,22 +1010,6 @@ class SubtitleRemover:
     @cached_property
     def sttn_det_inpaint(self):
         return STTNDetInpaint(self.hardware_accelerator.device, self.model_config.STTN_DET_MODEL_PATH)
-
-    @cached_property
-    def propainter_inpaint(self):
-        device = self.hardware_accelerator.device if self.hardware_accelerator.has_cuda() else torch.device("cpu")
-        return PropainterInpaint(
-            device, self.model_config.PROPAINTER_MODEL_DIR,
-            config.propainterMaxLoadNum.value,
-            mask_dilation=config.propainterMaskDilates.value,
-            flow_mask_dilation=config.propainterFlowMaskDilates.value)
-
-    @cached_property
-    def e2fgvi_inpaint(self):
-        device = self.hardware_accelerator.device if self.hardware_accelerator.has_cuda() else torch.device("cpu")
-        return E2FGVIInpaint(
-            device=device,
-            max_load_num=config.e2fgviMaxLoadNum.value)
 
 
 if __name__ == '__main__':

@@ -499,10 +499,6 @@ class WatermarkTemplateWidget(CardWidget):
         config.set(config.watermarkColorPropagationEnabled, checked)
         self._update_dependent_features()
 
-    def _on_power_sweep_changed(self, checked: bool):
-        """水印强力清扫开关"""
-        config.set(config.watermarkPowerSweepEnabled, checked)
-
     def _on_region_full_sweep_changed(self, checked: bool):
         """水印区域全部清扫开关"""
         config.set(config.watermarkRegionFullSweepEnabled, checked)

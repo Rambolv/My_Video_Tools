@@ -69,15 +69,18 @@ class ProcessManager:
         return False
     
     def terminate_all(self):
-        """顺序终止所有管理的进程（避免退出时线程池不可用）"""
-        for process_id, process in list(self.processes.items()):
-            try:
+        """并发终止所有管理的进程"""
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            futures = []
+            for process_id, process in list(self.processes.items()):
                 if isinstance(process, int):
-                    self.terminate_by_pid(process)
+                    futures.append(executor.submit(self.terminate_by_pid, process))
                 else:
-                    self.terminate_by_process(process)
-            except Exception:
-                pass
+                    futures.append(executor.submit(self.terminate_by_process, process))
+            
+            # 等待所有终止操作完成
+            concurrent.futures.wait(futures)
+        
         # 清空进程字典
         self.processes.clear()
     

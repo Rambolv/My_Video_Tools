@@ -21,11 +21,7 @@ class FFmpegCLI:
         return cls._instance
     
     def __init__(self):
-        _ffpath = self.ffmpeg_path
-        if os.path.exists(_ffpath):
-            os.chmod(_ffpath, stat.S_IRWXU + stat.S_IRWXG + stat.S_IRWXO)
-        else:
-            print(f"[FFmpegCLI] ffmpeg 文件不存在，请先合并分片: {_ffpath}")
+        os.chmod(self.ffmpeg_path, stat.S_IRWXU + stat.S_IRWXG + stat.S_IRWXO)
         
     @property
     def ffmpeg_path(self):

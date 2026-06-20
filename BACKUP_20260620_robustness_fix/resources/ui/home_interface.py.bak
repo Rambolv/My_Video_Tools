@@ -18,17 +18,12 @@ from PySide6.QtGui import QColor
 from ui.component.func_card import CollapsibleFuncCard, SettingRow, HelpButton, SectionHeader
 from ui.component.video_display_component import VideoDisplayComponent
 from ui.component.task_list_component import TaskListComponent, TaskStatus, TaskOptions
-from ui.component.gpu_monitor_dialog import GpuMonitorWidget
 from ui.icon.my_fluent_icon import MyFluentIcon
 from backend.config import config, tr
 from backend.tools.subtitle_remover_remote_call import SubtitleRemoverRemoteCall
 from backend.tools.process_manager import ProcessManager
 from backend.tools.common_tools import get_readable_path, is_image_file, read_image
 from backend.tools.constant import SubtitleDetectMode, InpaintMode
-from backend.tools.model_compat import (
-    validate_rife_config, validate_sr_config,
-    BACKEND_NCNN, BACKEND_PYTHON,
-)
 
 # ─── 字幕检测模型中文名映射 ───
 _SUBTITLE_MODEL_NAMES = {
@@ -114,16 +109,6 @@ class HomeInterface(QWidget):
     _btn_text_signal = Signal(object, str)    # (button, text)
     _btn_enable_signal = Signal(object, bool) # (button, enabled)
 
-    @staticmethod
-    def _on_btn_text_changed(btn, text):
-        """线程安全地更新按钮文本（使用静态方法避免 lambda 闭包问题）"""
-        btn.setText(text)
-
-    @staticmethod
-    def _on_btn_enable_changed(btn, enabled):
-        """线程安全地更新按钮启用状态"""
-        btn.setEnabled(enabled)
-
     def __init__(self, parent=None):
         super().__init__(parent=parent)
         self.setObjectName("HomeInterface")
@@ -147,8 +132,8 @@ class HomeInterface(QWidget):
         self.update_preview_with_comp_signal.connect(self.update_preview_with_comp)
         self.task_error_signal.connect(self.on_task_error)
         # 线程安全按钮操作
-        self._btn_text_signal.connect(self._on_btn_text_changed)
-        self._btn_enable_signal.connect(self._on_btn_enable_changed)
+        self._btn_text_signal.connect(lambda btn, txt: btn.setText(txt))
+        self._btn_enable_signal.connect(lambda btn, en: btn.setEnabled(en))
 
     def _build_inpaint_model_help(self):
         return (
@@ -217,10 +202,6 @@ class HomeInterface(QWidget):
         self.output_text.verticalScrollBar().valueChanged.connect(self.on_scroll_change)
         self._bottom_tabs.addTab(self.output_text, "📝 输出日志")
 
-        # Tab 3：GPU 实时监控（软件启动后自动运行）
-        self._gpu_monitor_widget = GpuMonitorWidget()
-        self._bottom_tabs.addTab(self._gpu_monitor_widget, "🖥 GPU 监控")
-
         # Tab 3：字幕文本
         self.subtitle_text = PlainTextEdit()
         self.subtitle_text.setPlaceholderText("字幕提取结果将显示在此处…")
@@ -288,114 +269,6 @@ class HomeInterface(QWidget):
                 "• <b>50-75</b>：标准模式，推荐日常使用<br>"
                 "• <b>75-100</b>：深度模式，高 VRAM，最佳效果<br><br>"
                 "拖动滑块实时调整 mask 膨胀、时间线范围、参考帧数等参数。")
-
-    # ── 模型/后端兼容性实时校验 ──
-
-    def _on_sr_model_changed(self, model_name: str):
-        """超分模型变更时自动修正后端"""
-        config.set(config.srModelName, model_name)
-        ok, msg, corrected = validate_sr_config(model_name, config.srBackend.value)
-        if not ok:
-            idx = self._sr_backend_combo.findData(corrected)
-            if idx >= 0:
-                self._sr_backend_combo.blockSignals(True)
-                self._sr_backend_combo.setCurrentIndex(idx)
-                self._sr_backend_combo.blockSignals(False)
-                config.set(config.srBackend, corrected)
-            InfoBar.warning("", msg, duration=4000, parent=self)
-
-    def _on_sr_backend_changed(self, index: int):
-        """超分后端变更时校验"""
-        backend = self._sr_backend_combo.itemData(index)
-        config.set(config.srBackend, backend)
-        # 后端变更不会影响 SR 模型选择，但 waifu2x 模型不受后端影响
-
-    def _on_fi_model_changed(self, index: int):
-        """帧插值模型变更时自动修正后端"""
-        model = self._fi_model_combo.itemData(index)
-        config.set(config.fiModelName, model)
-        ok, msg, corrected = validate_rife_config(model, config.fiBackend.value)
-        if not ok:
-            idx = self._fi_backend_combo.findData(corrected)
-            if idx >= 0:
-                self._fi_backend_combo.blockSignals(True)
-                self._fi_backend_combo.setCurrentIndex(idx)
-                self._fi_backend_combo.blockSignals(False)
-                config.set(config.fiBackend, corrected)
-                # 更新 ncnn 控件可见性
-                is_ncnn = (corrected == "ncnn")
-                if hasattr(self, '_fi_model_label'):
-                    self._fi_model_label.setVisible(is_ncnn)
-                    self._fi_model_combo.setVisible(is_ncnn)
-                    self._fi_thread_label.setVisible(is_ncnn)
-                    self._fi_thread_combo.setVisible(is_ncnn)
-            InfoBar.warning("", msg, duration=4000, parent=self)
-
-    def _on_fi_backend_changed(self, index: int):
-        """帧插值后端变更时校验并自动修正模型"""
-        backend = self._fi_backend_combo.itemData(index)
-        config.set(config.fiBackend, backend)
-        # 更新 ncnn 控件可见性
-        is_ncnn = (backend == "ncnn")
-        if hasattr(self, '_fi_model_label'):
-            self._fi_model_label.setVisible(is_ncnn)
-            self._fi_model_combo.setVisible(is_ncnn)
-            self._fi_thread_label.setVisible(is_ncnn)
-            self._fi_thread_combo.setVisible(is_ncnn)
-        # 校验模型是否兼容此后端
-        model = config.fiModelName.value
-        ok, msg, corrected = validate_rife_config(model, backend)
-        if not ok:
-            idx = self._fi_model_combo.findData(corrected)
-            if idx >= 0:
-                self._fi_model_combo.blockSignals(True)
-                self._fi_model_combo.setCurrentIndex(idx)
-                self._fi_model_combo.blockSignals(False)
-                config.set(config.fiModelName, corrected)
-            InfoBar.warning("", msg, duration=4000, parent=self)
-
-    def _build_sr_help(self):
-        return ("<b>超分辨率 (Super-Resolution)</b><br><br>"
-                "<b>Real-ESRGAN</b> — 通用 AI 超分<br>"
-                "• <b>realesr-animevideov3</b>：动漫视频专用 (4x, 轻量)<br>"
-                "• <b>RealESRGAN_x4plus</b>：通用图像 (4x)<br>"
-                "• <b>RealESRGAN_x2plus</b>：通用图像 (2x)<br>"
-                "• <b>realesr-general-x4v3</b>：通用轻量 (4x)<br>"
-                "后端可选 🐍 Python CUDA 或 ⚡ Vulkan<br><br>"
-                "<b>waifu2x</b> — AI 图像放大 (Vulkan)<br>"
-                "• <b>waifu2x-cunet</b>：最佳质量，含去噪<br>"
-                "• <b>waifu2x-upconv_anime</b>：轻量动漫<br>"
-                "固定使用 🎨 waifu2x 引擎<br><br>"
-                "项目: <a href='https://github.com/xinntao/Real-ESRGAN'>xinntao/Real-ESRGAN</a> ｜ "
-                "<a href='https://github.com/nihui/waifu2x-ncnn-vulkan'>nihui/waifu2x-ncnn-vulkan</a>")
-
-    def _build_fi_help(self):
-        return ("<b>帧率提升 (Frame Interpolation)</b><br><br>"
-                "基于 RIFE 的 AI 帧插值，在原有帧之间生成中间帧，<br>"
-                "使视频播放更流畅，或将低帧率视频提升为高帧率。<br><br>"
-                "• <b>2x</b>：25fps → 50fps，30fps → 60fps<br>"
-                "• <b>4x</b>：15fps → 60fps，25fps → 100fps<br>"
-                "• <b>8x</b>：10fps → 80fps（帧数×8，显存×3）<br><br>"
-                "<b>⚠️ 倍率越高，视频越流畅，但：</b><br>"
-                "• 处理时间 ×倍率正比增加<br>"
-                "• 运动模糊或快速运镜可能产生伪影<br>"
-                "• 建议 2x~4x 日常使用，8x 仅适合慢速镜头<br><br>"
-                "<b>Vulkan 后端可选模型</b><br>"
-                "• <b>rife-v3.1</b>：最新通用模型（推荐）<br>"
-                "　精度最高，运动场景伪影最少<br>"
-                "• <b>rife-v3.0</b>：通用模型<br>"
-                "　速度略快于 v3.1，质量略低<br>"
-                "• <b>rife-v2.4</b>：旧版通用模型<br>"
-                "　速度最快，适合低配 GPU 或大批量处理<br>"
-                "• <b>rife-anime</b>：2D 动画优化<br>"
-                "　专为动漫/卡通设计，对实拍视频效果较差<br><br>"
-                "Python 后端固定使用内置 RIFE 模型，不受模型选项影响<br><br>"
-                "<b>线程参数 (仅 Vulkan)</b><br>"
-                "格式 load:proc:save，控制并行度<br>"
-                "• <b>1:2:2 (保守)</b>：显存友好，推荐 8GB 以下 GPU<br>"
-                "• <b>2:4:4 (平衡)</b>：兼顾速度与显存，推荐默认<br>"
-                "• <b>4:8:8 (激进)</b>：最快速度，需 16GB+ 显存<br><br>"
-                "项目: <a href='https://github.com/nihui/rife-ncnn-vulkan'>nihui/rife-ncnn-vulkan</a>")
 
     def _build_hw_accel_help(self):
         return ("<b>硬件加速</b><br><br>"
@@ -534,136 +407,6 @@ class HomeInterface(QWidget):
         dw.setLayout(depth_row)
         dw.setMinimumHeight(36)
         card.addWidget(dw)
-
-        # ── 视频增强（超分 + 插帧）──
-        card.addWidget(SectionHeader("视频增强"))
-
-        # 超分辨率开关 + 模型选择 + 后端
-        sr_row = QtWidgets.QHBoxLayout()
-        sr_row.setSpacing(6)
-        sr_switch = SwitchButton()
-        sr_switch.setChecked(config.enableSuperResolution.value)
-        sr_switch.checkedChanged.connect(lambda v: config.set(config.enableSuperResolution, v))
-        sr_row.addWidget(BodyLabel("超分辨率"))
-        sr_row.addWidget(sr_switch)
-        sr_row.addWidget(HelpButton("超分辨率说明", self._build_sr_help()))
-        self._sr_model_combo = QtWidgets.QComboBox()
-        self._sr_model_combo.addItems(config.srModelName.validator.options)
-        self._sr_model_combo.setCurrentText(config.srModelName.value)
-        self._sr_model_combo.currentTextChanged.connect(self._on_sr_model_changed)
-        sr_row.addWidget(self._sr_model_combo)
-        # 后端选择（waifu2x 模型时置灰）
-        self._sr_backend_label = BodyLabel("后端")
-        sr_row.addWidget(self._sr_backend_label)
-        self._sr_backend_combo = QtWidgets.QComboBox()
-        for b in config.srBackend.validator.options:
-            self._sr_backend_combo.addItem({"python": "🐍 Python", "ncnn": "⚡ Vulkan"}.get(b, b), b)
-        self._sr_backend_combo.setCurrentIndex(
-            self._sr_backend_combo.findData(config.srBackend.value))
-        self._sr_backend_combo.currentIndexChanged.connect(self._on_sr_backend_changed)
-        sr_row.addWidget(self._sr_backend_combo)
-
-        # waifu2x 模型时禁用后端选择
-        def _update_sr_backend_state(model_name: str):
-            is_w2x = model_name.startswith("waifu2x-")
-            self._sr_backend_label.setEnabled(not is_w2x)
-            self._sr_backend_combo.setEnabled(not is_w2x)
-        # 初始状态
-        _update_sr_backend_state(config.srModelName.value)
-        # 模型切换时更新
-        self._sr_model_combo.currentTextChanged.connect(_update_sr_backend_state)
-
-        sr_row.addStretch()
-        sr_w = QtWidgets.QWidget()
-        sr_w.setLayout(sr_row)
-        sr_w.setMinimumHeight(30)
-        card.addWidget(sr_w)
-
-        # 帧插值开关 + 倍率 + 模型 + 后端选择
-        fi_row = QtWidgets.QHBoxLayout()
-        fi_row.setSpacing(6)
-        fi_switch = SwitchButton()
-        fi_switch.setChecked(config.enableFrameInterpolation.value)
-        fi_switch.checkedChanged.connect(lambda v: config.set(config.enableFrameInterpolation, v))
-        fi_row.addWidget(BodyLabel("帧率提升"))
-        fi_row.addWidget(fi_switch)
-        fi_row.addWidget(HelpButton("帧率提升说明", self._build_fi_help()))
-        self._fi_multiplier_combo = QtWidgets.QComboBox()
-        for m in config.fiMultiplier.validator.options:
-            self._fi_multiplier_combo.addItem(f"{m}x", m)
-        self._fi_multiplier_combo.setCurrentIndex(
-            self._fi_multiplier_combo.findData(config.fiMultiplier.value))
-        self._fi_multiplier_combo.currentIndexChanged.connect(
-            lambda i: config.set(config.fiMultiplier, self._fi_multiplier_combo.itemData(i)))
-        fi_row.addWidget(self._fi_multiplier_combo)
-        # ncnn 模型选择（仅 Vulkan 后端时显示）
-        self._fi_model_label = BodyLabel("模型")
-        fi_row.addWidget(self._fi_model_label)
-        self._fi_model_combo = QtWidgets.QComboBox()
-        flowframes_names = {"rife-v3.1": "RIFE 3.1", "rife-v3.0": "RIFE 3.0",
-                            "rife-v2.4": "RIFE 2.4", "rife-anime": "RIFE 1.8"}
-        for m in config.fiModelName.validator.options:
-            self._fi_model_combo.addItem(flowframes_names.get(m, m), m)
-        self._fi_model_combo.setCurrentIndex(
-            self._fi_model_combo.findData(config.fiModelName.value))
-        self._fi_model_combo.currentIndexChanged.connect(self._on_fi_model_changed)
-        fi_row.addWidget(self._fi_model_combo)
-        # ncnn 线程数（仅 Vulkan）
-        self._fi_thread_label = BodyLabel("线程")
-        fi_row.addWidget(self._fi_thread_label)
-        self._fi_thread_combo = QtWidgets.QComboBox()
-        thread_options = ["1:2:2 (保守)", "2:4:4 (平衡)", "4:8:8 (激进)"]
-        thread_values = ["1:2:2", "2:4:4", "4:8:8"]
-        current_thread = config.fiNcnnThreads.value
-        for i, label in enumerate(thread_options):
-            self._fi_thread_combo.addItem(label, thread_values[i])
-        idx = thread_values.index(current_thread) if current_thread in thread_values else 0
-        self._fi_thread_combo.setCurrentIndex(idx)
-        self._fi_thread_combo.currentIndexChanged.connect(
-            lambda i: config.set(config.fiNcnnThreads, self._fi_thread_combo.itemData(i)))
-        fi_row.addWidget(self._fi_thread_combo)
-        # 后端选择
-        fi_row.addWidget(BodyLabel("后端"))
-        self._fi_backend_combo = QtWidgets.QComboBox()
-        for b in config.fiBackend.validator.options:
-            self._fi_backend_combo.addItem({"python": "🐍 Python", "ncnn": "⚡ Vulkan"}.get(b, b), b)
-        self._fi_backend_combo.setCurrentIndex(
-            self._fi_backend_combo.findData(config.fiBackend.value))
-        fi_row.addWidget(self._fi_backend_combo)
-
-        # Vulkan/Python 切换时显示/隐藏 模型+线程 选择
-        def _update_fi_ncnn_visibility(backend_val):
-            is_ncnn = (backend_val == "ncnn")
-            self._fi_model_label.setVisible(is_ncnn)
-            self._fi_model_combo.setVisible(is_ncnn)
-            self._fi_thread_label.setVisible(is_ncnn)
-            self._fi_thread_combo.setVisible(is_ncnn)
-        _update_fi_ncnn_visibility(config.fiBackend.value)
-        self._fi_backend_combo.currentIndexChanged.connect(self._on_fi_backend_changed)
-
-        fi_row.addStretch()
-        fi_w = QtWidgets.QWidget()
-        fi_w.setLayout(fi_row)
-        fi_w.setMinimumHeight(30)
-        card.addWidget(fi_w)
-
-        # 处理顺序开关
-        order_row = QtWidgets.QHBoxLayout()
-        order_row.setContentsMargins(84, 0, 0, 0)
-        order_label = BodyLabel("先超分再插帧")
-        order_label.setStyleSheet("font-size: 11px; color: #888;")
-        order_row.addWidget(order_label)
-        self._enhance_order_switch = SwitchButton()
-        self._enhance_order_switch.setChecked(config.enhanceSrFirst.value)
-        self._enhance_order_switch.checkedChanged.connect(
-            lambda v: config.set(config.enhanceSrFirst, v))
-        self._enhance_order_switch.setToolTip("开启：先超分辨率放大 → 再帧插值\n关闭：先帧插值 → 再超分辨率放大")
-        order_row.addWidget(self._enhance_order_switch)
-        order_row.addStretch()
-        order_w = QtWidgets.QWidget()
-        order_w.setLayout(order_row)
-        order_w.setFixedHeight(28)
-        card.addWidget(order_w)
 
         # ── 性能设置 ──
         card.addWidget(SectionHeader("性能设置"))
@@ -890,17 +633,6 @@ class HomeInterface(QWidget):
         btn_layout.addWidget(self.stop_button)
         btn_layout.addStretch()
 
-        # 配置方案按钮
-        self.cfg_save_btn = PushButton("💾 保存配置")
-        self.cfg_save_btn.setMinimumHeight(34)
-        self.cfg_save_btn.clicked.connect(self._on_save_config)
-        btn_layout.addWidget(self.cfg_save_btn)
-
-        self.cfg_load_btn = PushButton("📂 读取配置")
-        self.cfg_load_btn.setMinimumHeight(34)
-        self.cfg_load_btn.clicked.connect(self._on_load_config)
-        btn_layout.addWidget(self.cfg_load_btn)
-
         self.adv_btn = PushButton("⚙ 高级设置")
         self.adv_btn.setMinimumHeight(34)
         self.adv_btn.clicked.connect(self._open_advanced_settings)
@@ -938,25 +670,18 @@ class HomeInterface(QWidget):
             self._vram_info_label.setText("🖥 GPU 显存: 无法获取")
 
     def _refresh_vram_display(self):
-        """刷新当前配置的显存估算（含增强模型）"""
+        """刷新当前配置的显存估算"""
         try:
             from backend.tools.vram_estimator import estimate_model_vram, get_vram_status_color
-            sr_mode = config.srModelName.value if config.enableSuperResolution.value else ""
-            fi_enabled = config.enableFrameInterpolation.value
             est = estimate_model_vram(
                 inpaint_mode=config.inpaintMode.value.value,
                 detect_mode=config.subtitleDetectMode.value.value,
                 concurrent_tasks=int(config.maxConcurrentTasks.value),
                 processing_depth=config.processingDepth.value if hasattr(config, 'processingDepth') else 50,
-                sr_mode=sr_mode,
-                fi_enabled=fi_enabled,
             )
             color = get_vram_status_color(est["usage_pct"])
-            parts = [f"修复 {est['inpaint_gb']:.1f}GB", f"检测 {est['detect_gb']:.1f}GB"]
-            if est["enhance_gb"] > 0:
-                parts.append(f"增强 {est['enhance_gb']:.1f}GB")
             self._vram_est_label.setText(
-                f"📊 当前配置预估: {' + '.join(parts)} = "
+                f"📊 当前配置预估: 修复 {est['inpaint_gb']:.1f}GB + 检测 {est['detect_gb']:.1f}GB = "
                 f"<b style='color:{color}'>{est['total_gb']:.1f}GB</b> "
                 f"(占 GPU 的 {est['usage_pct']:.0f}%)"
                 + (" ⚠️ 可能超出显存!" if est["over_limit"] else ""))
@@ -973,15 +698,11 @@ class HomeInterface(QWidget):
                 return
             for i in range(combo.count()):
                 n = i + 1
-                sr_mode = config.srModelName.value if config.enableSuperResolution.value else ""
-                fi_enabled = config.enableFrameInterpolation.value
                 est = estimate_model_vram(
                     inpaint_mode=config.inpaintMode.value.value,
                     detect_mode=config.subtitleDetectMode.value.value,
                     concurrent_tasks=n,
                     processing_depth=config.processingDepth.value if hasattr(config, 'processingDepth') else 50,
-                    sr_mode=sr_mode,
-                    fi_enabled=fi_enabled,
                 )
                 item = model.item(i)
                 if item is None:
@@ -998,11 +719,11 @@ class HomeInterface(QWidget):
             pass
 
     def _build_vram_ref_table(self):
-        """构建各模型显存参考表（含增强模型，实测值优先）"""
+        """构建各模型显存参考表（实测值优先）"""
         try:
             from backend.tools.vram_estimator import _MODEL_VRAM_BASELINE_1080P, get_model_vram_baseline, get_all_model_vram_list
             from backend.tools.vram_estimator import has_real_data, get_model_danger_flags
-            from backend.tools.constant import InpaintMode, SubtitleDetectMode
+            from backend.tools.constant import InpaintMode
             from backend.tools.hardware_accelerator import HardwareAccelerator
             accel = HardwareAccelerator.instance()
             gpu_vram = accel.get_gpu_vram_gb()
@@ -1011,9 +732,6 @@ class HomeInterface(QWidget):
             danger_flags = get_model_danger_flags()
             source_note = "🔬真实采集" if has_real else "📦预估值"
 
-            inpaint_values = {m.value for m in InpaintMode}
-            detect_values = {m.value for m in SubtitleDetectMode}
-
             lines = [
                 f"<table width='100%'>"
                 f"<caption style='color:#888;font-size:10px'>{source_note} | GPU: {gpu_vram:.1f}GB</caption>",
@@ -1021,12 +739,7 @@ class HomeInterface(QWidget):
             ]
             for model_key in _MODEL_VRAM_BASELINE_1080P:
                 vram = get_model_vram_baseline(model_key)
-                if model_key in inpaint_values:
-                    cat = "修复"
-                elif model_key in detect_values:
-                    cat = "检测"
-                else:
-                    cat = "增强"
+                cat = "修复" if model_key in [m.value for m in InpaintMode] else "检测"
                 safe_n = max(1, int(gpu_vram / (vram * 1.1))) if vram > 0 else 99
                 pct = vram / gpu_vram * 100 if gpu_vram > 0 else 999
                 if pct >= 95:
@@ -1080,14 +793,7 @@ class HomeInterface(QWidget):
         btn_row.addWidget(mode_lbl)
         self._extract_mode_combo = QtWidgets.QComboBox()
         self._extract_mode_combo.addItems(["按行提取", "按列提取", "提取浮动字幕"])
-        # 从配置初始化提取模式
-        _extract_mode_map = {"row": 0, "column": 1, "float": 2}
-        _init_mode_idx = _extract_mode_map.get(config.subtitleExtractMode.value, 0)
-        self._extract_mode_combo.setCurrentIndex(_init_mode_idx)
-        # 变更时同步到配置
-        _extract_mode_reverse = {0: "row", 1: "column", 2: "float"}
-        self._extract_mode_combo.currentIndexChanged.connect(
-            lambda i: config.set(config.subtitleExtractMode, _extract_mode_reverse.get(i, "row")))
+        self._extract_mode_combo.setCurrentIndex(0)
         self._extract_mode_combo.setFixedWidth(110)
         btn_row.addWidget(self._extract_mode_combo)
 
@@ -1328,43 +1034,6 @@ class HomeInterface(QWidget):
                 parent.switchTo(parent.advancedSettingInterface)
             except Exception:
                 pass
-
-    def _on_save_config(self):
-        """导出当前配置到 JSON 文件"""
-        path, _ = QtWidgets.QFileDialog.getSaveFileName(
-            self, "保存配置方案", "vsr_config.json",
-            "配置文件 (*.json)")
-        if not path:
-            return
-        from backend.tools.config_profile import export_config_to_json
-        if export_config_to_json(path):
-            from qfluentwidgets import InfoBar
-            InfoBar.success("配置已保存", f"已导出到: {path}", duration=3000, parent=self)
-        else:
-            from qfluentwidgets import InfoBar
-            InfoBar.error("保存失败", "导出配置时出错", duration=3000, parent=self)
-
-    def _on_load_config(self):
-        """从 JSON 文件导入配置"""
-        path, _ = QtWidgets.QFileDialog.getOpenFileName(
-            self, "读取配置方案", "", "配置文件 (*.json)")
-        if not path:
-            return
-        from backend.tools.config_profile import import_config_from_json
-        count = import_config_from_json(path)
-        if count > 0:
-            from qfluentwidgets import InfoBar
-            InfoBar.success(
-                "配置已加载",
-                f"已应用 {count} 项设置，部分选项可能需要重启生效",
-                duration=4000, parent=self)
-            # 刷新 UI 显示
-            self._on_vram_config_changed()
-            self._refresh_vram_display()
-            self._build_vram_ref_table()
-        else:
-            from qfluentwidgets import InfoBar
-            InfoBar.error("加载失败", "无法读取配置文件", duration=3000, parent=self)
 
     def _toggle_sweep_mode(self):
         """开关多循环暴力扫除模式"""

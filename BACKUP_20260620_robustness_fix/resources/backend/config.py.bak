@@ -58,14 +58,6 @@ class Config(QConfig):
     # 0=最快(低VRAM), 25=轻度, 50=标准, 75=深度, 100=极致(最强效果/最大VRAM)
     processingDepth = RangeConfigItem("Main", "ProcessingDepth", 50, RangeValidator(0, 100))
 
-    # ============ 资源管理总开关 ============
-    enableResourceManagement = ConfigItem("Main", "EnableResourceManagement", False, BoolValidator())
-
-    # ============ 资源调配等级 ============
-    # performance=性能优先, balanced=平衡, power_saving=最节约资源
-    resourceProfile = OptionsConfigItem("Main", "ResourceProfile", "balanced",
-        OptionsValidator(["performance", "balanced", "power_saving"]))
-
     # ============ VRAM 被动监控 ============
     # 开启后，每次处理视频时自动采样 GPU 显存峰值，写入 vram_records.json 供参考表使用
     enableVramMonitoring = ConfigItem("Main", "EnableVramMonitoring", False, BoolValidator())
@@ -107,9 +99,7 @@ class Config(QConfig):
     sttnReferenceLength = RangeConfigItem("Sttn", "ReferenceLength", 10, RangeValidator(1, 100))
     # 设置STTN算法最大同时处理的帧数量
     sttnMaxLoadNum = RangeConfigItem("Sttn", "MaxLoadNum", 50, RangeValidator(1, 300))
-    def getSttnMaxLoadNum(self):
-        """获取 STTN 最大同时处理帧数（lambda 改为方法，避免闭包问题）"""
-        return max(self.sttnMaxLoadNum.value, self.sttnNeighborStride.value * self.sttnReferenceLength.value)
+    getSttnMaxLoadNum = lambda self: max(self.sttnMaxLoadNum.value, self.sttnNeighborStride.value * self.sttnReferenceLength.value)
     
     # 以下参数仅适用PROPAINTER算法时，才生效
     # 【根据自己的GPU显存大小设置】最大同时处理的图片数量，设置越大处理效果越好，但是要求显存越高
@@ -194,43 +184,7 @@ class Config(QConfig):
     sweepModeEnabled = ConfigItem("Inpaint", "SweepModeEnabled", False, BoolValidator())
     # 扫除重复次数：将输出视频再次作为输入反复扫除，逐步清除顽固水印
     sweepIterations = RangeConfigItem("Inpaint", "SweepIterations", 1, RangeValidator(1, 10))
-
-    # ==================== 视频增强（超分辨率 + 帧插值） ====================
-    # Real-ESRGAN 超分辨率: https://github.com/xinntao/Real-ESRGAN
-    enableSuperResolution = ConfigItem("Enhancement", "EnableSuperResolution", False, BoolValidator())
-    # 超分模型名称（含 Real-ESRGAN + waifu2x 两种算法）
-    # Real-ESRGAN: Python CUDA / ncnn Vulkan 后端
-    # waifu2x:     waifu2x-ncnn-vulkan (单独的 Vulkan 算法，选择后自动使用)
-    srModelName = OptionsConfigItem("Enhancement", "SRModelName", "realesr-animevideov3",
-        OptionsValidator([
-            "realesr-animevideov3", "RealESRGAN_x4plus", "RealESRGAN_x2plus", "realesr-general-x4v3",
-            "waifu2x-cunet", "waifu2x-upconv_anime",
-        ]))
-    # 分块大小（0 = 不分块）
-    srTileSize = RangeConfigItem("Enhancement", "SRTileSize", 0, RangeValidator(0, 1024))
-    # 超分后端（仅 Real-ESRGAN 有效，waifu2x 模型自动走 Vulkan）
-    srBackend = OptionsConfigItem("Enhancement", "SRBackend", "python",
-        OptionsValidator(["python", "ncnn"]))
-    # 是否使用半精度推理
-    srUseHalf = ConfigItem("Enhancement", "SRUseHalf", True, BoolValidator())
-    # RIFE 帧插值: https://github.com/hzwer/ECCV2022-RIFE
-    enableFrameInterpolation = ConfigItem("Enhancement", "EnableFrameInterpolation", False, BoolValidator())
-    # 帧率倍增系数
-    fiMultiplier = OptionsConfigItem("Enhancement", "FIMultiplier", 2, OptionsValidator([2, 3, 4, 5, 6, 7, 8]))
-    # RIFE ncnn 模型名称（与 Flowframes 兼容）
-    fiModelName = OptionsConfigItem("Enhancement", "FIModelName", "rife-v3.1",
-        OptionsValidator(["rife-v3.1", "rife-v3.0", "rife-v2.4", "rife-anime"]))
-    # RIFE ncnn 线程参数: load:proc:save，越大越快但越耗显存
-    # 推荐: 保守=1:2:2, 平衡=2:4:4, 激进=4:8:8
-    fiNcnnThreads = ConfigItem("Enhancement", "FINcnnThreads", "1:2:2", ConfigValidator())
-    # RIFE 模型目录（留空使用内置）
-    fiModelDir = ConfigItem("Enhancement", "FIModelDir", "", ConfigValidator())
-    # 先超分再插帧（否则先插帧再超分）
-    enhanceSrFirst = ConfigItem("Enhancement", "EnhanceSrFirst", True, BoolValidator())
-    # 帧插值后端: python = Python CUDA, ncnn = rife-ncnn-vulkan
-    fiBackend = OptionsConfigItem("Enhancement", "FIBackend", "python",
-        OptionsValidator(["python", "ncnn"]))
-
+    
     # 启动时检查应用更新
     checkUpdateOnStartup = ConfigItem("Main", "CheckUpdateOnStartup", True, BoolValidator())
 

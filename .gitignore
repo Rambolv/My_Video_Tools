@@ -74,3 +74,16 @@ ffmpeg/binaries
 
 *.html
 builds/
+
+# Large downloaded binaries (ncnn Vulkan tools)
+resources/backend/tools/rife_ncnn/
+resources/backend/tools/waifu2x_ncnn/
+resources/backend/tools/sr_ncnn/
+
+# Large model weights
+resources/weights/
+resources/models/
+
+# Check/test scripts
+check_*.py
+test_*.py

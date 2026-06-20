@@ -191,6 +191,8 @@ class SettingInterface(ScrollArea):
         self.performance_section.addWidget(self._vram_est_label)
         self.scrollLayout.addWidget(self.performance_section)
 
+
+
         # ---- 模型显存参考组（可折叠） ----
         self.vram_ref_section = _CollapsibleSection("模型显存参考 (1080p/标准深度)", self.scrollWidget)
         # 状态标签：显示已采集数据数

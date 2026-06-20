@@ -88,3 +88,7 @@ typing_extensions==4.13.2
 tzdata==2025.2
 urllib3==2.4.0
 webdataset==0.2.111
+
+# ===== 视频增强（超分辨率 + 帧插值）可选依赖 =====
+realesrgan
+gdown

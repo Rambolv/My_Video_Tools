@@ -12,6 +12,7 @@ from qfluentwidgets import (ScrollArea, ExpandLayout, CardWidget, SubtitleLabel,
 from backend.config import config, tr, VERSION, PROJECT_HOME_URL, PROJECT_ISSUES_URL, PROJECT_RELEASES_URL
 from backend.tools.version_service import VersionService
 from backend.tools.concurrent import TaskExecutor
+from backend.tools.resource_manager import ResourceManager, ResourceProfile
 
 
 class _ProcessingDepthSlider(SettingCard):
@@ -101,6 +102,14 @@ class AdvancedSettingInterface(ScrollArea):
         super().__init__(parent)
         self.parent = parent
         self.version_manager = VersionService()
+        # 应用保存的资源管理状态
+        try:
+            rm = ResourceManager.instance()
+            rm.enabled = config.enableResourceManagement.value
+            if rm.enabled:
+                rm.set_profile_by_key(config.resourceProfile.value)
+        except Exception:
+            pass
         self.__init_widgets()
 
     def __init_widgets(self):
@@ -123,6 +132,11 @@ class AdvancedSettingInterface(ScrollArea):
         self.setup_layout()
 
     def setup_layout(self):
+        self.resource_group.addSettingCard(self.resource_enable_switch)
+        self.resource_group.addSettingCard(self.resource_profile_combo)
+        self.resource_profile_combo.setVisible(config.enableResourceManagement.value)
+        self.expandLayout.addWidget(self.resource_group)
+
         self.subtitle_detection_group.addSettingCard(self.subtitle_yx_axis_difference_pixel)
         self.subtitle_detection_group.addSettingCard(self.subtitle_area_deviation_pixel)
         self.subtitle_detection_group.addSettingCard(self.processing_depth_slider)
@@ -155,6 +169,27 @@ class AdvancedSettingInterface(ScrollArea):
         
     def setup_ui(self):
         """设置UI"""
+        # 资源调配设置组
+        self.resource_group = SettingCardGroup("资源调配", self.scrollWidget)
+        self.resource_enable_switch = SwitchSettingCard(
+            configItem=config.enableResourceManagement,
+            icon=FluentIcon.POWER_BUTTON,
+            title="启用资源管理",
+            content="关闭时使用全部CPU/GPU资源（默认性能最大）；开启后可选择资源调度等级",
+            parent=self.resource_group,
+        )
+        self.resource_enable_switch.switchButton.checkedChanged.connect(self._on_resource_enable_changed)
+
+        self.resource_profile_combo = ComboBoxSettingCard(
+            configItem=config.resourceProfile,
+            icon=FluentIcon.SPEED_HIGH,
+            title="资源调配等级",
+            content="性能优先=大batch/高线程/不主动GC | 平衡=适中 | 最节约资源=小batch/低线程/积极GC",
+            parent=self.resource_group,
+            texts=["性能优先", "平衡", "最节约资源"],
+        )
+        self.resource_profile_combo.comboBox.currentTextChanged.connect(self._on_resource_profile_changed)
+
         # 字幕检测设置组
         self.subtitle_detection_group = SettingCardGroup(tr["Setting"]["SubtitleDetectionSetting"], self.scrollWidget)
         # STTN设置组
@@ -359,3 +394,23 @@ class AdvancedSettingInterface(ScrollArea):
 
         config.set(config.saveDirectory, folder)
         self.save_directory.setContent(tr["Setting"]["SaveDirectoryDefault"] if not config.saveDirectory.value else config.saveDirectory.value)
+
+    def _on_resource_enable_changed(self, checked: bool):
+        """资源管理总开关变更"""
+        rm = ResourceManager.instance()
+        rm.enabled = checked
+        config.set(config.enableResourceManagement, checked)
+        # 显示/隐藏等级选择
+        self.resource_profile_combo.setVisible(checked)
+        if checked:
+            # 开启时应用当前保存的等级
+            rm.set_profile_by_key(config.resourceProfile.value)
+
+    def _on_resource_profile_changed(self, text: str):
+        """资源调配等级变更时同步到 ResourceManager"""
+        key_map = {"性能优先": "performance", "平衡": "balanced", "最节约资源": "power_saving"}
+        key = key_map.get(text, "balanced")
+        rm = ResourceManager.instance()
+        rm.set_profile_by_key(key)
+        # 同步到配置
+        config.set(config.resourceProfile, key)
