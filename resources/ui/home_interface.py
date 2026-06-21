@@ -416,6 +416,18 @@ class HomeInterface(QWidget):
                 "采集的数据会覆盖内置基准值，用于推荐值和危险标记。<br>"
                 "相同配置不会重复采集，有 OOM 记录会标记 ☠️。")
 
+    def _build_vram_lock_help(self):
+        return ("<b>🔒 锁定专用显存</b><br><br>"
+                "<b>问题</b>: Windows WDDM 驱动会将系统 RAM 映射为<br>"
+                "'共享 GPU 内存'，PyTorch 可能在专用显存未满时<br>"
+                "就开始使用这部分慢速共享内存 → 性能骤降。<br><br>"
+                "<b>策略</b>: 通过 nvidia-smi 精确查询板载专用显存，<br>"
+                "设置 PyTorch 进程级显存上限 = 专用显存 × 90%，<br>"
+                "预留 10% 安全边界。超限直接 OOM 而非溢出。<br><br>"
+                "• <b>开启（推荐）</b>: 仅使用板载高速显存，速度稳定<br>"
+                "• <b>关闭</b>: 允许使用共享内存，可能导致速度骤降<br><br>"
+                "<i>需要重启处理任务生效</i>")
+
     def _build_extract_help(self):
         return ("<b>字幕提取</b><br><br>"
                 "使用 OCR 模型从视频中自动检测并识别字幕文本。<br><br>"
@@ -845,6 +857,29 @@ class HomeInterface(QWidget):
         mw.setLayout(monitor_row)
         mw.setMinimumHeight(26)
         vram_section.addWidget(mw)
+
+        # ── 锁定专用显存开关 ──
+        lock_row = QtWidgets.QHBoxLayout()
+        lock_row.setContentsMargins(0, 0, 0, 0)
+        ll = BodyLabel("🔒 锁定专用显存")
+        ll.setStyleSheet("font-size: 11px;")
+        lock_row.addWidget(ll)
+        self._vram_lock_switch = SwitchButton()
+        self._vram_lock_switch.setChecked(config.lockDedicatedVram.value)
+        self._vram_lock_switch.checkedChanged.connect(
+            lambda v: config.set(config.lockDedicatedVram, v))
+        self._vram_lock_switch.setToolTip(
+            "开启后锁定GPU专用显存上限，仅在板载显存内分配。\n"
+            "关闭后可能使用共享系统内存，导致速度骤降。\n"
+            "推荐：始终开启（默认）")
+        lock_row.addWidget(self._vram_lock_switch)
+        lock_row.addWidget(
+            HelpButton("锁定专用显存说明", self._build_vram_lock_help()))
+        lock_row.addStretch()
+        lw = QtWidgets.QWidget()
+        lw.setLayout(lock_row)
+        lw.setMinimumHeight(26)
+        vram_section.addWidget(lw)
 
         # 模型显存参考表
         self._vram_ref_table = QtWidgets.QTextEdit()

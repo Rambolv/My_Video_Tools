@@ -157,6 +157,76 @@ class HardwareAccelerator:
             pass
         return 4.0  # CPU/未知 保守估计
 
+    def get_dedicated_vram_gb(self) -> float:
+        """获取 GPU 专用显存（GB），通过 nvidia-smi 查询排除共享系统内存。
+
+        Windows WDDM 驱动会将部分系统 RAM 映射为"共享 GPU 内存"，
+        torch.cuda 报告的 total_memory 包含此共享部分。
+        本方法只返回硬件板载专用显存。
+        """
+        try:
+            if not self.__cuda:
+                return self.get_gpu_vram_gb()
+            import subprocess, re
+            result = subprocess.run(
+                ["nvidia-smi", "--query-gpu=memory.total", "--format=csv,noheader,nounits"],
+                capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                mb = float(result.stdout.strip().splitlines()[0].strip())
+                return mb / 1024.0  # MiB → GiB
+        except Exception:
+            pass
+        return self.get_gpu_vram_gb()
+
+    def lock_dedicated_vram(self, headroom_pct: float = 10.0):
+        """锁定 CUDA 进程显存上限为专用显存的 (100-headroom_pct)%。
+
+        调用后 PyTorch 分配显存超过此上限时将直接抛出 OOM 错误，
+        而非通过 Windows WDDM 驱动溢出到慢速共享系统内存。
+
+        仅在 CUDA 设备且 config.lockDedicatedVram 开启时生效。
+
+        Returns:
+            (locked_gb, total_cuda_gb, fraction) 或 (None, None, None)
+        """
+        if not self.__cuda:
+            return None, None, None
+        try:
+            from backend.config import config
+            if not config.lockDedicatedVram.value:
+                return None, None, None
+
+            import torch
+            import os
+
+            dedicated = self.get_dedicated_vram_gb()
+            total_cuda = self.get_gpu_vram_gb()
+
+            # CUDA 报告的 total 包含共享内存（Windows），分数需用 dedicated/total
+            fraction = (dedicated * (1.0 - headroom_pct / 100.0)) / total_cuda
+            fraction = max(0.3, min(fraction, 1.0))  # 至少留 30%，最多 100%
+
+            # ── 核心锁定策略 ──
+            # 1. 设置 PyTorch 进程级显存上限
+            torch.cuda.set_per_process_memory_fraction(fraction, 0)
+
+            # 2. 环境变量：禁用可扩展内存段（防止 CUDA 缓存突破限制）
+            os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "")
+            current = os.environ.get("PYTORCH_CUDA_ALLOC_CONF", "")
+            if "expandable_segments:False" not in current:
+                new_conf = "expandable_segments:False"
+                if current:
+                    new_conf = current + "," + new_conf
+                os.environ["PYTORCH_CUDA_ALLOC_CONF"] = new_conf
+
+            locked_gb = dedicated * (1.0 - headroom_pct / 100.0)
+            print(f"[VRAM Lock] 专用显存: {dedicated:.1f}GB → 锁定上限: {locked_gb:.1f}GB "
+                  f"(fraction={fraction:.2f}, headroom={headroom_pct:.0f}%)")
+            return locked_gb, total_cuda, fraction
+        except Exception as e:
+            print(f"[VRAM Lock] 锁定失败: {e}")
+            return None, None, None
+
     def set_enabled(self, enable):
         self.__enabled = enable
 

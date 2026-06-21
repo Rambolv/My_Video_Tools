@@ -70,6 +70,11 @@ class Config(QConfig):
     # 开启后，每次处理视频时自动采样 GPU 显存峰值，写入 vram_records.json 供参考表使用
     enableVramMonitoring = ConfigItem("Main", "EnableVramMonitoring", False, BoolValidator())
 
+    # ============ 锁定专用显存 ============
+    # 开启后锁定 GPU 专用显存上限，在专用显存耗尽前不使用共享系统内存
+    # 可避免 Windows WDDM 驱动将部分数据溢出到慢速共享内存导致性能骤降
+    lockDedicatedVram = ConfigItem("Main", "LockDedicatedVram", True, BoolValidator())
+
     # 【设置像素点偏差】
     # 用于判断是不是非字幕区域(一般认为字幕文本框的长度是要大于宽度的，如果字幕框的高大于宽，且大于的幅度超过指定像素点大小，则认为是错误检测)
     subtitleYXAxisDifferencePixel = RangeConfigItem("Main", "SubtitleYXAxisDifferencePixel", 10, RangeValidator(0, 300))
