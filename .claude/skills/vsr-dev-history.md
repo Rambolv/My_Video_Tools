@@ -140,3 +140,14 @@ applyTo: "**/*.{py,md,ps1,cmd}"
 | 模型下载 | `scripts/download_models.py` |
 | 一键安装 | `scripts/setup_windows.ps1` |
 | 打包脚本 | `scripts/build_minimal_package.ps1` |
+
+## 七、AI SKILL 索引
+
+本项目的全部 AI SKILL 及其多维评价详见 **[vsr-skills-master-index](vsr-skills-master-index.md)**。
+
+| SKILL | 领域 | 用途 |
+|-------|------|------|
+| [vsr-skills-master-index](vsr-skills-master-index.md) | 元认知 | 全部 SKILL 多维度分类评价总索引 |
+| [multi-sweep-watermark-removal](multi-sweep-watermark-removal.md) | 算法 | 多循环暴力扫除算法设计文档 |
+| [vsr-video-enhancement](vsr-video-enhancement.md) | 架构 | 视频增强模块（SR+FI）架构与后端规范 |
+| [ui-audit-and-perf-optimization](ui-audit-and-perf-optimization.md) | 质量+性能 | UI死链审计方法论 + GPU管线性能优化模式 |

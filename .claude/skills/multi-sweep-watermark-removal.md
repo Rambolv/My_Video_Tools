@@ -101,3 +101,10 @@ Canny边缘检测残留文字笔画，从邻近干净帧复制背景像素。
 - `resources/backend/tools/inpaint_tools.py` - 全部核心算法函数
 - `resources/backend/config.py` - 配置项定义
 - `resources/ui/home_interface.py` - UI控件
+
+## 相关 SKILL
+
+- **[vsr-skills-master-index](vsr-skills-master-index.md)** — 全部 SKILL 多维度评价总索引
+- **[vsr-dev-history](vsr-dev-history.md)** — 项目全景开发历程
+- **[vsr-video-enhancement](vsr-video-enhancement.md)** — 视频增强模块（SR+FI）
+- **[ui-audit-and-perf-optimization](ui-audit-and-perf-optimization.md)** — UI审计 + GPU管线优化方法论

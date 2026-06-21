@@ -120,3 +120,20 @@ enhanceSrFirst           # bool (处理顺序)
 
 ### 帧数限制
 **注意**: ncnn 后端提取帧时不应设上限（之前 sr_ncnn 限500帧，waifu2x 限1000帧，已修复）
+
+## 性能优化（2026-06-22 更新）
+
+### FFmpeg 管道 + 线程流水线
+原逐帧串行循环 (cv2.VideoCapture → GPU → cv2.VideoWriter) 导致 GPU 利用率锯齿波动。
+已重写为 FFmpeg pipe + 3 线程流水线架构，解码/推理/编码并行重叠。
+详见 **[ui-audit-and-perf-optimization](ui-audit-and-perf-optimization.md)** 第三章。
+
+### ncnn 后端帧提取提速
+`_extract_frames` 从 cv2.imwrite 循环改为 `ffmpeg -q:v 1 %08d.png` 直接提取，提速 3-5 倍。
+
+## 相关 SKILL
+
+- **[vsr-skills-master-index](vsr-skills-master-index.md)** — 全部 SKILL 多维度评价总索引
+- **[ui-audit-and-perf-optimization](ui-audit-and-perf-optimization.md)** — UI审计 + GPU管线优化方法论
+- **[vsr-dev-history](vsr-dev-history.md)** — 项目全景开发历程
+- **[multi-sweep-watermark-removal](multi-sweep-watermark-removal.md)** — 多循环暴力扫除算法
