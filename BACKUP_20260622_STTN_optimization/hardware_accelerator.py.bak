@@ -5,29 +5,6 @@ import torch
 
 from backend.config import tr
 
-# ── 全局推理优化：启用 cuDNN 自动算法选择 ──
-# 对 CNN 密集型模型 (STTN 编码器/解码器) 提速 5-15%
-_OPTIMIZE_ATTEMPTED = False
-
-def _ensure_inference_optimized():
-    """全局一次性推理优化设置（幂等，多次调用安全）"""
-    global _OPTIMIZE_ATTEMPTED
-    if _OPTIMIZE_ATTEMPTED:
-        return
-    _OPTIMIZE_ATTEMPTED = True
-    try:
-        if torch.cuda.is_available():
-            # 让 cuDNN 自动选择最优卷积算法（固定输入尺寸时最优）
-            torch.backends.cudnn.benchmark = True
-            # 启用 cuDNN 确定性模式（可选，略降性能但结果可复现）—— 推理不需要
-            torch.backends.cudnn.deterministic = False
-            # 允许 TF32 加速（Ampere+ GPU, 如 RTX 30/40 系列）
-            torch.backends.cuda.matmul.allow_tf32 = True
-            torch.backends.cudnn.allow_tf32 = True
-    except Exception:
-        pass
-
-
 class HardwareAccelerator:
 
     # 类变量，用于存储单例实例
@@ -50,7 +27,6 @@ class HardwareAccelerator:
         self.__device = None
 
     def initialize(self):
-        _ensure_inference_optimized()
         self.check_directml_available()
         self.check_cuda_available()
         self.check_mps_available()
