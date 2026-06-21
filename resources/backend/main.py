@@ -641,9 +641,6 @@ class SubtitleRemover:
                             inner_index += 1
                             self.update_preview_with_comp(np.clip(batch[i]+mask[:,:,np.newaxis]*0.3,0,255).astype(np.uint8), inpainted_frame)
                     self.update_progress(tbar, increment=len(batch))
-                    # ── 子批间清理 GPU 显存碎片 ──
-                    if self.hardware_accelerator.has_cuda():
-                        torch.cuda.empty_cache()
 
     def run(self):
         # 记录开始时间
