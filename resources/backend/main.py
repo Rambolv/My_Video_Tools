@@ -486,12 +486,22 @@ class SubtitleRemover:
                             if area not in mask_area_coordinates:
                                 mask_area_coordinates.append(area)
 
+                # ---- 扫除模式预处理：预加载工具函数，避免循环内重复 import ----
+                if config.sweepModeEnabled.value:
+                    try:
+                        from backend.tools.inpaint_tools import (
+                            merge_deformation_mask, detect_text_deformation,
+                            temporal_median_filter_frames, batch_density_estimate,
+                            exemplar_fill_from_clean_frames, batch_remove_bright_residuals,
+                            exemplar_fill_residuals, batch_refine, batch_restore_grain,
+                            adaptive_orig_blend, create_mask as _tools_create_mask
+                        )
+                    except ImportError:
+                        pass
+
                 # ---- 变形检测 + 自适应遮罩扩展：文字大幅变形时使用整个检测区域 ----
                 if config.sweepModeEnabled.value and mask_area_coordinates:
                     try:
-                        from backend.tools.inpaint_tools import (
-                            merge_deformation_mask, detect_text_deformation
-                        )
                         # 先检测文字是否大幅变形
                         is_deforming, deform_score = detect_text_deformation(
                             sub_list, start_frame_index, end_frame_index,
@@ -520,16 +530,15 @@ class SubtitleRemover:
                 # ---- 时序中值滤波：对遮罩区域做跨帧中值，消除变色/变形文字 ----
                 if config.temporalMedianFilter.value and mask_area_coordinates:
                     try:
-                        from backend.tools.inpaint_tools import temporal_median_filter_frames, create_mask
-                        med_mask = create_mask(
+                        med_mask = _tools_create_mask(
                             (self.frame_height, self.frame_width),
                             mask_area_coordinates,
                             feather_edges=False
                         )
                         window = config.temporalMedianWindow.value
-                        # 扫除模式下使用更小窗口，避免过渡模糊
-                        if config.sweepModeEnabled.value and window > 15:
-                            window = 15
+                        # 扫除模式下使用小窗口（GPU已做两次推理，时序滤波只需辅助）
+                        if config.sweepModeEnabled.value and window > 10:
+                            window = 10
                         frames_need_inpaint = temporal_median_filter_frames(
                             frames_need_inpaint, med_mask, window
                         )
@@ -537,11 +546,10 @@ class SubtitleRemover:
                     except Exception as e:
                         self.append_output(f"  [时序中值滤波] 跳过: {e}")
 
-                # ---- 中值体背景估计（扫除模式专用）：全色彩空间聚类，精准去除半透明混合水印 ----
+                # ---- 密度峰值背景估计（扫除模式专用）：全色彩空间聚类，精准去除半透明混合水印 ----
                 if config.sweepModeEnabled.value and mask_area_coordinates:
                     try:
-                        from backend.tools.inpaint_tools import batch_density_estimate, create_mask
-                        de_mask = create_mask(
+                        de_mask = _tools_create_mask(
                             (self.frame_height, self.frame_width),
                             mask_area_coordinates,
                             feather_edges=False
@@ -558,7 +566,6 @@ class SubtitleRemover:
 
                 # ---- 邻近干净帧填充：从没有文字检测的帧复制背景 ----
                 try:
-                    from backend.tools.inpaint_tools import exemplar_fill_from_clean_frames
                     frames_need_inpaint = exemplar_fill_from_clean_frames(
                         frames_need_inpaint, mask, sub_list,
                         start_frame_index, search_range=30
@@ -575,32 +582,25 @@ class SubtitleRemover:
                     if len(batch) >= 1:
                         # 第一次推理
                         inpainted_frames = model(batch, mask)
-                        # 扫除模式：多遍修复（3次推理 + 亮色残留清理 + 残留边缘检测修补）
+                        # 扫除模式：多遍修复（2次推理加权 + 后处理）
                         if config.sweepModeEnabled.value:
                             try:
-                                # 第二次推理
+                                # 第二次推理（在第一次结果上再推理一次）
                                 inpainted_frames2 = model(inpainted_frames, mask)
-                                # 第三次推理（在第二次结果上再推理一次）
-                                inpainted_frames3 = model(inpainted_frames2, mask)
-                                # 三次加权混合（权重递减）
+                                # 两次加权混合（60%一次推理 + 40%二次推理）
                                 inpainted_frames = [
-                                    cv2.addWeighted(
-                                        cv2.addWeighted(f1, 0.5, f2, 0.3, 0),
-                                        0.8, f3, 0.2, 0
-                                    )
-                                    for f1, f2, f3 in zip(inpainted_frames, inpainted_frames2, inpainted_frames3)
+                                    cv2.addWeighted(f1, 0.6, f2, 0.4, 0)
+                                    for f1, f2 in zip(inpainted_frames, inpainted_frames2)
                                 ]
-                                self.append_output("  [多遍修复] 三次推理已应用")
+                                self.append_output("  [多遍修复] 两次推理已应用")
 
                                 # 亮色残留清理：检测遮罩区内异常亮斑并压制
-                                from backend.tools.inpaint_tools import batch_remove_bright_residuals
                                 inpainted_frames = batch_remove_bright_residuals(
                                     batch, inpainted_frames, mask
                                 )
                                 self.append_output("  [亮斑清理] 白色残留已压制")
 
                                 # 残留文字边缘检测 + 邻近干净帧填充
-                                from backend.tools.inpaint_tools import exemplar_fill_residuals
                                 inpainted_frames = exemplar_fill_residuals(
                                     batch, inpainted_frames, mask, sub_list,
                                     start_frame_index, search_range=10
@@ -610,7 +610,6 @@ class SubtitleRemover:
                                 self.append_output(f"  [扫除增强] 跳过: {e}")
                         # 3. 后处理：锐化 + 羽化混合 + 颜色校正
                         try:
-                            from backend.tools.inpaint_tools import batch_refine
                             inpainted_frames = batch_refine(
                                 batch, mask, inpainted_frames,
                                 sharpen_strength=config.postSharpenStrength.value / 100.0,
@@ -618,7 +617,6 @@ class SubtitleRemover:
                             )
                             # 4. 颗粒感恢复：消除 AI 修复的"塑料感"
                             try:
-                                from backend.tools.inpaint_tools import batch_restore_grain
                                 inpainted_frames = batch_restore_grain(
                                     inpainted_frames, mask, strength=0.4
                                 )
@@ -628,7 +626,6 @@ class SubtitleRemover:
                             pass
                         # 5. 自适应原始保护混合 v2 — 多模态检测（亮度+色差），只在水印残留处使用处理结果
                         try:
-                            from backend.tools.inpaint_tools import adaptive_orig_blend
                             inpainted_frames = adaptive_orig_blend(
                                 _raw_batch, inpainted_frames, mask,
                                 color_threshold=2.0, bright_threshold=1.5, feather_blend=10
