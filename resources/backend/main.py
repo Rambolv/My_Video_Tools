@@ -965,7 +965,7 @@ class SubtitleRemover:
         def lerp(lo, hi, depth):
             """线性插值；int/float 直接算，bool 按阈值，str 枚举按阈值"""
             if isinstance(lo, bool):
-                return depth >= 0.5
+                return depth >= 0.75  # 仅深度≥75时开启可选功能，与枚举阈值对齐
             if isinstance(lo, str):
                 # 枚举型：按阈值分档
                 if depth < 0.25: return lo
