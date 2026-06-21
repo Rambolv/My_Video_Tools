@@ -418,14 +418,14 @@ class HomeInterface(QWidget):
 
     def _build_vram_lock_help(self):
         return ("<b>🔒 锁定专用显存</b><br><br>"
-                "<b>问题</b>: Windows WDDM 驱动会将系统 RAM 映射为<br>"
+                "<b>问题</b>: Windows WDDM 驱动将系统 RAM 映射为<br>"
                 "'共享 GPU 内存'，PyTorch 可能在专用显存未满时<br>"
-                "就开始使用这部分慢速共享内存 → 性能骤降。<br><br>"
-                "<b>策略</b>: 通过 nvidia-smi 精确查询板载专用显存，<br>"
-                "设置 PyTorch 进程级显存上限 = 专用显存 × 96%，<br>"
-                "预留 4% 安全边界。超限直接 OOM 而非溢出。<br><br>"
-                "• <b>开启（推荐）</b>: 仅使用板载高速显存，速度稳定<br>"
-                "• <b>关闭</b>: 允许使用共享内存，可能导致速度骤降<br><br>"
+                "就开始使用慢速共享内存 → 性能骤降。<br><br>"
+                "<b>策略 (软限位)</b>: 使用 CUDA 异步分配器，<br>"
+                "优先复用板载显存池，仅当专用显存真正不足时<br>"
+                "才降级到共享内存兜底（非硬拦截，不 OOM）。<br><br>"
+                "• <b>96% 以内</b>: 仅使用板载高速显存<br>"
+                "• <b>96% 以上</b>: 允许使用共享内存兜底<br><br>"
                 "<i>需要重启处理任务生效</i>")
 
     def _build_extract_help(self):

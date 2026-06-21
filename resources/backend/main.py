@@ -664,7 +664,7 @@ class SubtitleRemover:
         if config.lockDedicatedVram.value:
             locked, total_cuda, frac = self.hardware_accelerator.lock_dedicated_vram(headroom_pct=4.0)
             if locked is not None:
-                self.append_output(f"🔒 显存已锁定: {locked:.1f}GB (专用显存的96%, 预留4%安全边界)")
+                self.append_output(f"🔒 显存策略: {locked:.1f}GB以内仅用板载显存, 超限后允许共享内存兜底")
 
         # 重置进度条
         self.progress_total = 0
