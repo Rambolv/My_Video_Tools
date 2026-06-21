@@ -662,9 +662,9 @@ class SubtitleRemover:
 
         # ── 锁定专用显存：防止 Windows WDDM 溢出到共享系统内存 ──
         if config.lockDedicatedVram.value:
-            locked, total_cuda, frac = self.hardware_accelerator.lock_dedicated_vram(headroom_pct=10.0)
+            locked, total_cuda, frac = self.hardware_accelerator.lock_dedicated_vram(headroom_pct=4.0)
             if locked is not None:
-                self.append_output(f"🔒 显存已锁定: {locked:.1f}GB (专用显存的90%, 预留10%安全边界)")
+                self.append_output(f"🔒 显存已锁定: {locked:.1f}GB (专用显存的96%, 预留4%安全边界)")
 
         # 重置进度条
         self.progress_total = 0
