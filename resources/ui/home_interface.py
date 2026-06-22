@@ -1692,8 +1692,12 @@ class HomeInterface(QWidget):
             if process.exitcode == 0 and task and task.status == TaskStatus.PROCESSING:
                 # 扫描实际输出（run()可能覆盖video_out_path，如_Nclean后缀）
                 import glob as _glob
+                import re as _re
                 out_dir = os.path.dirname(output_path)
                 out_stem = Path(task.path).stem
+                # 清理已含的 _no_sub / _Nclean_no_sub 后缀避免双重匹配
+                out_stem = _re.sub(r'_no_sub$', '', out_stem)
+                out_stem = _re.sub(r'_\d+clean_no_sub$', '', out_stem)
                 candidates = _glob.glob(os.path.join(out_dir, f"{out_stem}*_no_sub*.mp4"))
                 # 优先取最新的文件
                 if candidates:
