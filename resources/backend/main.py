@@ -639,7 +639,14 @@ class SubtitleRemover:
                             self.update_preview_with_comp(np.clip(batch[i]+mask[:,:,np.newaxis]*0.3,0,255).astype(np.uint8), inpainted_frame)
                     self.update_progress(tbar, increment=len(batch))
 
-    def run(self):
+    def run(self, skip_enhancement=False):
+        """执行完整处理管线（或仅字幕去除当 skip_enhancement=True）
+
+        多任务并发时建议设置 skip_enhancement=True，由上层统一分阶段调度：
+        Phase 1: 全部任务 skip_enhancement=True → 字幕去除并行
+        Phase 2: 全部任务独立调用 run_enhancement_pipeline() → 增强并行
+        这样可以防止不同模型的显存同时占用导致 OOM。
+        """
         # 记录开始时间
         start_time = time.time()
         if len(self.sub_areas) == 0:
@@ -861,62 +868,63 @@ class SubtitleRemover:
 
             # ═══════════════════════════════════════════════════════
             #  视频增强：超分辨率 + 帧插值
+            #  skip_enhancement=True 时跳过，由上层多任务调度器统一分阶段执行
             # ═══════════════════════════════════════════════════════
-            _enhance_enabled = (
-                config.enableSuperResolution.value or
-                config.enableFrameInterpolation.value
-            )
-            if _enhance_enabled:
-                self.append_output("")
-                self.append_output("=" * 50)
-                self.append_output("🎬 视频增强阶段")
-                self.append_output("=" * 50)
-                from backend.tools.video_enhancer import enhance_video_pipeline
-
-                # 当前去字幕后的临时文件
-                _src_path = self.video_temp_file.name
-                # 增强后输出到独立临时文件
-                _enhanced_path = os.path.abspath(
-                    tempfile.NamedTemporaryFile(suffix='_enhanced.mp4', delete=False).name
+            if not skip_enhancement:
+                _enhance_enabled = (
+                    config.enableSuperResolution.value or
+                    config.enableFrameInterpolation.value
                 )
+                if _enhance_enabled:
+                    self.append_output("")
+                    self.append_output("=" * 50)
+                    self.append_output("🎬 视频增强阶段")
+                    self.append_output("=" * 50)
+                    from backend.tools.video_enhancer import enhance_video_pipeline
 
-                def _enhance_progress(pct, finished):
-                    if finished:
-                        self.append_output(f"  [视频增强] 进度: 100%")
-                    elif pct % 20 == 0:
-                        self.append_output(f"  [视频增强] 进度: {pct}%")
-
-                try:
-                    enhance_video_pipeline(
-                        input_path=_src_path,
-                        output_path=_enhanced_path,
-                        log_callback=lambda msg: self.append_output(msg),
-                        progress_callback=_enhance_progress,
+                    # 当前去字幕后的临时文件
+                    _src_path = self.video_temp_file.name
+                    # 增强后输出到独立临时文件
+                    _enhanced_path = os.path.abspath(
+                        tempfile.NamedTemporaryFile(suffix='_enhanced.mp4', delete=False).name
                     )
-                    # 用增强后的文件替换临时文件
-                    self.video_temp_file.close()
+
+                    def _enhance_progress(pct, finished):
+                        if finished:
+                            self.append_output(f"  [视频增强] 进度: 100%")
+                        elif pct % 20 == 0:
+                            self.append_output(f"  [视频增强] 进度: {pct}%")
+
                     try:
-                        os.unlink(_src_path)
-                    except Exception:
-                        pass
-                    self.video_temp_file = tempfile.NamedTemporaryFile(suffix='.mp4', delete=False)
-                    self.video_temp_file.close()  # 关闭句柄，仅用其路径
-                    # 用增强后文件覆盖新临时文件路径
-                    import shutil
-                    shutil.copy2(_enhanced_path, self.video_temp_file.name)
-                    try:
-                        os.unlink(_enhanced_path)
-                    except Exception:
-                        pass
-                    self.append_output("✅ 视频增强完成")
-                except Exception as e:
-                    self.append_output(f"⚠️ 视频增强失败 (不影响去字幕结果): {e}")
-                    traceback.print_exc()
-                    try:
-                        os.unlink(_enhanced_path)
-                    except Exception:
-                        pass
-                self.append_output("=" * 50)
+                        enhance_video_pipeline(
+                            input_path=_src_path,
+                            output_path=_enhanced_path,
+                            log_callback=lambda msg: self.append_output(msg),
+                            progress_callback=_enhance_progress,
+                        )
+                        # 用增强后的文件替换临时文件
+                        self.video_temp_file.close()
+                        try:
+                            os.unlink(_src_path)
+                        except Exception:
+                            pass
+                        self.video_temp_file = tempfile.NamedTemporaryFile(suffix='.mp4', delete=False)
+                        self.video_temp_file.close()
+                        import shutil
+                        shutil.copy2(_enhanced_path, self.video_temp_file.name)
+                        try:
+                            os.unlink(_enhanced_path)
+                        except Exception:
+                            pass
+                        self.append_output("✅ 视频增强完成")
+                    except Exception as e:
+                        self.append_output(f"⚠️ 视频增强失败 (不影响去字幕结果): {e}")
+                        traceback.print_exc()
+                        try:
+                            os.unlink(_enhanced_path)
+                        except Exception:
+                            pass
+                    self.append_output("=" * 50)
 
             # 将原音频合并到新生成的视频文件中
             self.merge_audio_to_video()
@@ -1114,6 +1122,38 @@ class SubtitleRemover:
             max_load_num=config.e2fgviMaxLoadNum.value)
 
 
+    @staticmethod
+    def run_enhancement_only(input_path, output_path, log_callback=None):
+        """独立增强阶段：对已去字幕的视频执行 SR/FI（用于多任务分阶段调度）
+
+        由上层调度器在全部任务完成字幕去除后统一调用,
+        确保所有并发任务使用同一种模型, 避免 SR 模型与字幕模型同时占用显存。
+        """
+        _log = log_callback or (lambda msg: print(msg))
+        _enhance_enabled = (
+            config.enableSuperResolution.value or
+            config.enableFrameInterpolation.value
+        )
+        if not _enhance_enabled:
+            import shutil
+            shutil.copy2(input_path, output_path)
+            return output_path
+
+        _log("=" * 50)
+        _log("🎬 视频增强阶段 (Phase 2)")
+        _log("=" * 50)
+        from backend.tools.video_enhancer import enhance_video_pipeline
+        enhance_video_pipeline(
+            input_path=input_path,
+            output_path=output_path,
+            log_callback=_log,
+            progress_callback=lambda p, f: None,
+        )
+        _log("✅ 视频增强完成")
+        _log("=" * 50)
+        return output_path
+
+
 if __name__ == '__main__':
     multiprocessing.set_start_method("spawn")
     from backend.tools.args_handler import parse_args
@@ -1130,4 +1170,4 @@ if __name__ == '__main__':
     sr.video_out_path = args.output
     config.inpaintMode.value = args.inpaint_mode
     sr.run()
-        
+

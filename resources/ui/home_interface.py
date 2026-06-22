@@ -1666,9 +1666,10 @@ class HomeInterface(QWidget):
                 lambda e, ti=task_index: self.task_error_signal.emit(ti, e)
             )
             
+            # 多任务并发时，字幕去除阶段跳过增强(分阶段调度防OOM)
             process = multiprocessing.Process(
                 target=HomeInterface.remover_process,
-                args=(remote_caller.queue, task.path, output_path, options)
+                args=(remote_caller.queue, task.path, output_path, options, True)
             )
             
             if not self.running_task:
@@ -1727,26 +1728,66 @@ class HomeInterface(QWidget):
                 self.video_cap = None
             
             max_workers = min(config.maxConcurrentTasks.value, len(pending_tasks))
-            self._append_output(f"启动 {max_workers} 个并发任务处理器（共 {len(pending_tasks)} 个待处理任务）")
-            
-            # 在后台线程中管理线程池
+
+            # ── 检测是否需要增强阶段 ──
+            _need_enhancement = (
+                config.enableSuperResolution.value or
+                config.enableFrameInterpolation.value
+            )
+            _phase1_label = ("字幕去除 + 增强"
+                if not _need_enhancement else "字幕去除 (Phase 1/2)")
+            self._append_output(
+                f"启动 {max_workers} 个并发任务（共 {len(pending_tasks)} 个任务）→ {_phase1_label}")
+
+            # 在后台线程中管理分阶段线程池
             def task_manager():
+                # ═══════════════ Phase 1: 字幕去除 ═══════════════
                 with ThreadPoolExecutor(max_workers=max_workers) as executor:
                     futures = {}
-                    # 提交所有待处理任务
                     for task_index, task in pending_tasks:
                         future = executor.submit(self._run_single_task, task_index, task)
                         futures[future] = task_index
-                    
-                    # 等待所有任务完成
+
                     for future in as_completed(futures):
                         task_index = futures[future]
                         try:
                             future.result()
                         except Exception as e:
-                            print(f"Task {task_index} failed: {e}")
-                
-                # 所有任务完成
+                            print(f"Task {task_index} Phase 1 failed: {e}")
+
+                if not self.running_task:
+                    self._check_all_tasks_finished()
+                    return
+
+                # ═══════════════ Phase 2: 视频增强 ═══════════════
+                if _need_enhancement:
+                    self._append_output("═══ 全部字幕去除完成 → Phase 2: 视频增强 ═══")
+                    # 收集 Phase 1 输出路径
+                    enhance_tasks = []
+                    for task_index, task in pending_tasks:
+                        t = self.task_list_component.get_task(task_index)
+                        if t and t.status == TaskStatus.COMPLETED and t.output_path:
+                            enhance_tasks.append((task_index, t))
+
+                    if enhance_tasks:
+                        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                            efutures = {}
+                            for task_index, t in enhance_tasks:
+                                self._append_output(
+                                    f"  启动增强: {t.name}")
+                                self.task_list_component.update_task_status(
+                                    task_index, TaskStatus.PROCESSING)
+                                future = executor.submit(
+                                    self._run_enhancement_task, task_index, t)
+                                efutures[future] = task_index
+
+                            for future in as_completed(efutures):
+                                task_index = efutures[future]
+                                try:
+                                    future.result()
+                                except Exception as e:
+                                    print(f"Task {task_index} Phase 2 failed: {e}")
+
                 if self.running_task:
                     self._check_all_tasks_finished()
 
@@ -1757,15 +1798,43 @@ class HomeInterface(QWidget):
             self.run_button.setVisible(True)
             self.stop_button.setVisible(False)
 
+    def _run_enhancement_task(self, task_index, task):
+        """Phase 2: 对已去字幕的视频执行增强(SR/FI)
+
+        由 task_manager 在所有 Phase 1 任务完成后统一调度,
+        确保全并发任务同阶段运行, 避免不同模型显存叠加。
+        """
+        try:
+            from backend.main import SubtitleRemover
+            enhanced_output = task.output_path.replace('_no_sub.mp4', '_enhanced.mp4')
+            if '_no_sub.' not in enhanced_output:
+                enhanced_output = task.output_path + '_enhanced.mp4'
+
+            SubtitleRemover.run_enhancement_only(
+                input_path=task.output_path,
+                output_path=enhanced_output,
+                log_callback=lambda msg: self._append_output(f"[增强|{task.name}] {msg}"),
+            )
+            # 用增强后的输出替换原输出
+            import shutil
+            shutil.move(enhanced_output, task.output_path)
+            self.task_list_component.update_task_status(task_index, TaskStatus.COMPLETED)
+            self._append_output(f"✅ 增强完成: {task.name}")
+        except Exception as e:
+            traceback.print_exc()
+            self._append_output(f"❌ 增强失败: {task.name} - {e}")
+            self.task_list_component.update_task_status(task_index, TaskStatus.FAILED)
+
     @staticmethod
-    def remover_process(queue, video_path, output_path, options):
+    def remover_process(queue, video_path, output_path, options, skip_enhancement=False):
         """
         在子进程中执行字幕提取的函数
-        
+
         Args:
             video_path: 视频文件路径
             output_path: 输出文件路径
             options: 选项
+            skip_enhancement: True=仅字幕去除, False=完整管线(含SR/FI)
         """
         sr = None
         try:
@@ -1778,7 +1847,7 @@ class HomeInterface(QWidget):
             sr.append_output = lambda *args: SubtitleRemoverRemoteCall.remote_call_append_log(queue, args)
             sr.manage_process = lambda pid: SubtitleRemoverRemoteCall.remote_call_manage_process(queue, pid)
             sr.update_preview_with_comp = lambda ori, comp: SubtitleRemoverRemoteCall.remote_call_update_preview_with_comp(queue, ori, comp)
-            sr.run()
+            sr.run(skip_enhancement=skip_enhancement)
         except Exception as e:
             traceback.print_exc()
             SubtitleRemoverRemoteCall.remote_call_catch_error(queue, e)
