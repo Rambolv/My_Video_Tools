@@ -133,6 +133,7 @@ def enhance_video_waifu2x(input_path, output_path, scale=2, noise=-1, gpu_id=0,
         temp_video = os.path.join(tmp, "out.mp4")
         cmd_enc = [ff, "-y", "-framerate", str(fps),
                    "-i", os.path.join(final_out, "%08d.png"),
+                   "-r", str(fps),  # 显式输出帧率
                    "-vcodec", "libx264", "-crf", "18",
                    "-pix_fmt", "yuv420p",
                    "-loglevel", "error", temp_video]

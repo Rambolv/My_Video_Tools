@@ -1819,27 +1819,40 @@ class HomeInterface(QWidget):
         try:
             from backend.main import SubtitleRemover
             from backend.tools.common_tools import vsr_output_path
-            # 增强输出路径 (VSR 命名规范 + 操作标签)
+            # 增强输出路径 (VSR 命名规范 — 包含全部操作标签)
             _sr_on = config.enableSuperResolution.value
             _fi_on = config.enableFrameInterpolation.value
+            # 从 Phase1 输出提取扫除轮数
+            _sweep_tag = ""
+            _m = __import__('re').search(r'_SWEEP(\d+)', os.path.basename(task.output_path))
+            if _m:
+                _sweep_tag = f"SWEEP{_m.group(1)}"
             _ops_parts = []
+            if _sweep_tag:
+                _ops_parts.append(_sweep_tag)
             if _sr_on:
                 _sr_model = config.srModelName.value
                 _scale = 4 if 'x4' in _sr_model else 2
                 _ops_parts.append(f"SR{_scale}x")
             if _fi_on:
                 _ops_parts.append(f"FI{config.fiMultiplier.value}x")
-            enhanced_output = vsr_output_path(task.path, ops="_".join(_ops_parts))
+            # 完整路径: 包含所有操作
+            final_output = vsr_output_path(task.path, ops="_".join(_ops_parts))
 
             SubtitleRemover.run_enhancement_only(
                 input_path=task.output_path,
-                output_path=enhanced_output,
+                output_path=final_output,
                 log_callback=lambda msg: self._append_output(f"[增强|{task.name}] {msg}"),
             )
-            # 用增强后的输出替换原输出
+            # 增强成功 → 删除 Phase1 中间文件, 保留完整命名产物
             import shutil
-            if os.path.exists(enhanced_output):
-                shutil.move(enhanced_output, task.output_path)
+            if os.path.exists(final_output):
+                if os.path.abspath(task.output_path) != os.path.abspath(final_output):
+                    try:
+                        os.unlink(task.output_path)
+                    except Exception:
+                        pass
+                task.output_path = final_output
             self.task_list_component.update_task_status(task_index, TaskStatus.COMPLETED)
             self._append_output(f"✅ 增强完成: {task.name}")
         except Exception as e:

@@ -407,6 +407,7 @@ def interpolate_video_ncnn(
         temp_video = os.path.join(tmp_root, "temp_no_audio.mp4")
         cmd = [ff, "-y", "-framerate", str(target_fps),
                "-i", os.path.join(frames_out, "%08d.png"),
+               "-r", str(target_fps),  # 显式输出帧率
                "-vcodec", "libx264", "-crf", "18",
                "-pix_fmt", "yuv420p",
                "-loglevel", "error", temp_video]
