@@ -1059,19 +1059,17 @@ class SubtitleRemover:
             print(f"  ... 共 {len(applied)} 个参数")
 
     def merge_audio_to_video(self):
-        # 创建音频临时对象，windows下delete=True会有permission denied的报错
+        """合并原音频到输出视频。无音频时直接输出无声视频。"""
         temp = tempfile.NamedTemporaryFile(suffix='.aac', delete=False)
         audio_extract_command = [FFmpegCLI.instance().ffmpeg_path,
                                  "-y", "-i", self.video_path,
                                  "-acodec", "copy",
                                  "-vn", "-loglevel", "error", temp.name]
-        # 始终使用 shell=False 避免命令注入风险，路径中含空格由列表传参处理
         try:
             subprocess.check_output(audio_extract_command, stdin=open(os.devnull), shell=False)
-        except Exception as e:
-            traceback.print_exc()
-            self.append_output(tr['Main']['FailToExtractAudio'].format(str(e)))
-            return
+        except Exception:
+            # 音频提取失败 (如源无音轨) → 直接输出无声视频
+            self.append_output("  (源视频无音轨，输出无声视频)")
         else:
             if os.path.exists(self.video_temp_file.name):
                 audio_merge_command = [FFmpegCLI.instance().ffmpeg_path,
@@ -1082,23 +1080,24 @@ class SubtitleRemover:
                                        "-loglevel", "error", self.video_out_path]
                 try:
                     subprocess.check_output(audio_merge_command, stdin=open(os.devnull), shell=False)
+                    self.is_successful_merged = True
                 except Exception as e:
-                    traceback.print_exc()
                     self.append_output(tr['Main']['FailToMergeAudio'].format(str(e)))
-                    return
             if os.path.exists(temp.name):
                 try:
                     os.remove(temp.name)
                 except Exception:
                     pass
-            self.is_successful_merged = True
         finally:
             temp.close()
             if not self.is_successful_merged:
+                # 兜底：确保输出文件一定存在
                 try:
                     shutil.copy2(self.video_temp_file.name, self.video_out_path)
+                    self.append_output(f"  → 输出文件: {self.video_out_path}")
                 except Exception as e:
-                    self.append_output(tr['Main']['CopyFileFailed'].format(self.video_temp_file.name, self.video_out_path, str(e)))
+                    self.append_output(tr['Main']['CopyFileFailed'].format(
+                        self.video_temp_file.name, self.video_out_path, str(e)))
             self.video_temp_file.close()
 
     @cached_property

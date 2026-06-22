@@ -77,21 +77,22 @@ def read_image(path):
 import re as _re
 from pathlib import Path as _Path
 
+def vsr_clean_stem(stem: str) -> str:
+    """清理文件名 stem 中的所有 VSR 后缀 (新旧兼容)。"""
+    stem = _re.sub(r'_VSR.*$', '', stem)             # 新规范 _VSR*
+    stem = _re.sub(r'_\d+clean_no_sub$', '', stem)    # 旧扫除 _Nclean_no_sub
+    stem = _re.sub(r'_no_sub$', '', stem)             # 旧去字幕 _no_sub
+    stem = _re.sub(r'_enhanced$', '', stem)           # 旧增强 _enhanced
+    return stem
+
+
 def vsr_output_path(input_path, ops="", ext=None):
-    """生成 VSR 处理产物输出路径。
+    """生成 VSR 处理产物输出路径 (新旧命名兼容)。
 
-    Args:
-        input_path: 原始输入文件路径
-        ops: 操作标签, 如 "SWEEP2", "SR4x", "FI2x", "SR4x_FI2x"
-        ext: 输出扩展名 (默认继承输入)
-
-    Returns:
-        绝对路径, 如 /path/movie_VSR_SR4x_FI2x.mp4
+    自动清理旧版 _no_sub/_Nclean_no_sub/_enhanced 后缀。
     """
     p = _Path(input_path)
-    stem = p.stem
-    # 清理已有的 _VSR* 后缀 (支持复处理)
-    stem = _re.sub(r'_VSR.*$', '', stem)
+    stem = vsr_clean_stem(p.stem)
     suffix = f"_VSR" if not ops else f"_VSR_{ops}"
     out_ext = ext if ext else p.suffix
     out_dir = os.path.dirname(os.path.abspath(input_path))
@@ -99,19 +100,11 @@ def vsr_output_path(input_path, ops="", ext=None):
 
 
 def vsr_glob_outputs(input_dir, original_stem):
-    """Glob 匹配指定原始文件的所有 VSR 产物, 按修改时间降序。
-
-    Args:
-        input_dir: 输出目录
-        original_stem: 原始文件名 stem (不含 _VSR 后缀)
-
-    Returns:
-        匹配文件路径列表 (最新在前)
-    """
+    """Glob 匹配 VSR 产物 (新旧命名兼容), 按修改时间降序。"""
     import glob as _glob
-    stem = _re.sub(r'_VSR.*$', '', original_stem)
+    stem = vsr_clean_stem(original_stem)
     pattern = os.path.join(input_dir, f"{stem}_VSR*")
-    candidates = _glob.glob(pattern + ".*")  # 匹配任意扩展名
+    candidates = _glob.glob(pattern + ".*")
     if not candidates:
         candidates = _glob.glob(pattern + ".mp4")
     candidates.sort(key=os.path.getmtime, reverse=True)
