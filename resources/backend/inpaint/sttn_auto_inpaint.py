@@ -193,10 +193,8 @@ class STTNAutoInpaint:
         self.video_path = video_path
         self.mask_path = mask_path
         # 设置输出视频文件的路径
-        self.video_out_path = os.path.join(
-            os.path.dirname(os.path.abspath(self.video_path)),
-            f"{os.path.basename(self.video_path).rsplit('.', 1)[0]}_no_sub.mp4"
-        )
+        from backend.tools.common_tools import vsr_output_path
+        self.video_out_path = vsr_output_path(self.video_path)
         # 配置可在一次处理中加载的最大帧数
         if clip_gap is None:
             self.clip_gap = config.getSttnMaxLoadNum()

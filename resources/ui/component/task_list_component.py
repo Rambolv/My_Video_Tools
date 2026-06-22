@@ -38,20 +38,14 @@ class Task:
 
     @property
     def output_path(self):
-        """获取输出路径（自动去除已有的 _no_sub / _clean 后缀防重复）"""
+        """获取输出路径 (VSR 命名规范: {stem}_VSR.mp4)"""
         if self._output_path is not None:
             return self._output_path
+        from backend.tools.common_tools import vsr_output_path
         save_directory = os.path.dirname(self.path) if not config.saveDirectory.value else config.saveDirectory.value
-        stem = Path(self.path).stem
-        # 去除重复后缀：已含 _no_sub → 不重复追加
-        import re as _re
-        stem = _re.sub(r'_no_sub$', '', stem)
-        stem = _re.sub(r'_\d+clean_no_sub$', '', stem)
-        if self.is_image:
-            output_path = os.path.abspath(os.path.join(save_directory, f'{stem}_no_sub.png'))
-        else:
-            output_path = os.path.abspath(os.path.join(save_directory, f'{stem}_no_sub.mp4'))
-        return output_path
+        base_path = os.path.join(save_directory, os.path.basename(self.path))
+        ext = '.png' if self.is_image else None
+        return vsr_output_path(base_path, ext=ext)
 
     @output_path.setter
     def output_path(self, value):

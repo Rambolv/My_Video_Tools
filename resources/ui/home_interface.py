@@ -1690,15 +1690,10 @@ class HomeInterface(QWidget):
             # 任务完成处理 — 查找实际输出文件（扫除模式可能改名）
             task = self.task_list_component.get_task(task_index)
             if process.exitcode == 0 and task and task.status == TaskStatus.PROCESSING:
-                # 扫描实际输出（run()可能覆盖video_out_path，如_Nclean后缀）
-                import glob as _glob
-                import re as _re
+                # 扫描实际输出（VSR命名规范, glob匹配_VSR*文件）
+                from backend.tools.common_tools import vsr_glob_outputs
                 out_dir = os.path.dirname(output_path)
-                out_stem = Path(task.path).stem
-                # 清理已含的 _no_sub / _Nclean_no_sub 后缀避免双重匹配
-                out_stem = _re.sub(r'_no_sub$', '', out_stem)
-                out_stem = _re.sub(r'_\d+clean_no_sub$', '', out_stem)
-                candidates = _glob.glob(os.path.join(out_dir, f"{out_stem}*_no_sub*.mp4"))
+                candidates = vsr_glob_outputs(out_dir, Path(task.path).stem)
                 # 优先取最新的文件
                 if candidates:
                     candidates.sort(key=os.path.getmtime, reverse=True)
@@ -1823,16 +1818,25 @@ class HomeInterface(QWidget):
         """
         try:
             from backend.main import SubtitleRemover
-            # 增强输出路径: 在扩展名前插入 _enhanced
-            base, ext = os.path.splitext(task.output_path)
-            enhanced_output = f"{base}_enhanced{ext}"
+            from backend.tools.common_tools import vsr_output_path
+            # 增强输出路径 (VSR 命名规范 + 操作标签)
+            _sr_on = config.enableSuperResolution.value
+            _fi_on = config.enableFrameInterpolation.value
+            _ops_parts = []
+            if _sr_on:
+                _sr_model = config.srModelName.value
+                _scale = 4 if 'x4' in _sr_model else 2
+                _ops_parts.append(f"SR{_scale}x")
+            if _fi_on:
+                _ops_parts.append(f"FI{config.fiMultiplier.value}x")
+            enhanced_output = vsr_output_path(task.path, ops="_".join(_ops_parts))
 
             SubtitleRemover.run_enhancement_only(
                 input_path=task.output_path,
                 output_path=enhanced_output,
                 log_callback=lambda msg: self._append_output(f"[增强|{task.name}] {msg}"),
             )
-            # 用增强后的输出替换原输出 (Windows 同盘移动是原子操作)
+            # 用增强后的输出替换原输出
             import shutil
             if os.path.exists(enhanced_output):
                 shutil.move(enhanced_output, task.output_path)

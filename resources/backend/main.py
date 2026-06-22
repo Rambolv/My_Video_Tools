@@ -79,10 +79,9 @@ class SubtitleRemover:
         if not self.video_writer.isOpened():
             self.video_cap.release()
             raise IOError(f"无法创建视频写入器，请检查输出目录是否可写: {self.video_temp_file.name}")
-        # 输出文件名，后续在 run() 中会根据扫除次数更新后缀
-        self.video_out_path = os.path.abspath(os.path.join(
-            os.path.dirname(self.video_path),
-            f'{self.vd_name}_no_sub.mp4'))
+        # 输出文件名 (VSR 命名规范)
+        from backend.tools.common_tools import vsr_output_path
+        self.video_out_path = vsr_output_path(self.video_path)
         self.ext = os.path.splitext(vd_path)[-1]
         if self.is_picture:
             pic_dir = os.path.join(os.path.dirname(self.video_path), 'no_sub')
@@ -866,12 +865,11 @@ class SubtitleRemover:
             self.video_path = _orig_video_path
 
         if not self.is_picture:
-            # 最终确定输出文件名（含扫除轮数标记）
+            # 最终确定输出文件名 (VSR 命名规范 + 操作标签)
             if config.sweepModeEnabled.value and config.sweepIterations.value > 1:
-                _final_iters = config.sweepIterations.value
-                self.video_out_path = os.path.abspath(os.path.join(
-                    os.path.dirname(self.video_path),
-                    f'{self.vd_name}_{_final_iters}clean_no_sub.mp4'))
+                from backend.tools.common_tools import vsr_output_path
+                _ops = f"SWEEP{config.sweepIterations.value}"
+                self.video_out_path = vsr_output_path(self.video_path, ops=_ops)
             self.append_output(f"  → 输出文件: {self.video_out_path}")
 
             # ═══════════════════════════════════════════════════════
