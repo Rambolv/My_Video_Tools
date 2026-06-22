@@ -218,8 +218,6 @@ class STTNAutoInpaint:
                 # 创建视频写入对象，用于输出修复后的视频
                 writer = cv2.VideoWriter(self.video_out_path, cv2.VideoWriter_fourcc(*"mp4v"), frame_info['fps'], (frame_info['W_ori'], frame_info['H_ori']))
             
-            # 计算需要迭代修复视频的次数
-            rec_time = frame_info['len'] // self.clip_gap if frame_info['len'] % self.clip_gap == 0 else frame_info['len'] // self.clip_gap + 1
             # 计算分割高度，用于确定修复区域的大小
             split_h = int(frame_info['W_ori'] * 3 / 16)
             
@@ -232,12 +230,23 @@ class STTNAutoInpaint:
                 
             # 得到修复区域位置
             inpaint_area = get_inpaint_area_by_mask(frame_info['W_ori'], frame_info['H_ori'], split_h, mask)
-            # 遍历每一次的迭代次数
-            for i in range(rec_time):
-                start_f = i * self.clip_gap  # 起始帧位置
-                end_f = min((i + 1) * self.clip_gap, frame_info['len'])  # 结束帧位置
+
+            # ── VRAM 自适应调度 ──
+            from backend.tools.hardware_accelerator import HardwareAccelerator
+            _accel = HardwareAccelerator.instance()
+            _base_gap = self.clip_gap
+            _current_frame = 0  # 游标追踪已处理帧数
+
+            # 动态窗口遍历（显存压力大时自动缩小窗口）
+            while _current_frame < frame_info['len']:
+                # ── 每片段前检查显存压力，动态调整窗口大小 ──
+                if _accel.has_cuda() and _current_frame > 0:
+                    _base_gap = _accel.adaptive_batch_size(
+                        self.clip_gap, min_batch=max(8, self.clip_gap // 4))
+                start_f = _current_frame
+                end_f = min(_current_frame + _base_gap, frame_info['len'])
                 tqdm.write(f'Processing: {start_f + 1} - {end_f} / Total: {frame_info['len']}')
-                
+
                 frames_hr = []  # 高分辨率帧列表
                 frames = {}  # 帧字典，用于存储裁剪后的图像
                 comps = {}  # 组合字典，用于存储修复后的图像
@@ -318,6 +327,8 @@ class STTNAutoInpaint:
                                 input_sub_remover.update_progress(tbar, increment=1)
                             if original_frame is not None and input_sub_remover.gui_mode:
                                 input_sub_remover.update_preview_with_comp(original_frame, frame)
+                # ── 游标推进 ──
+                _current_frame = end_f
         except Exception as e:
             print(f"Error during video processing: {str(e)}")
             # 不抛出异常，允许程序继续执行

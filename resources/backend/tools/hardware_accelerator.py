@@ -229,6 +229,85 @@ class HardwareAccelerator:
             print(f"[VRAM Lock] 配置失败: {e}")
             return None, None, None
 
+    # ═══════════════════════════════════════════════════════════
+    #  VRAM 压力监控与自适应调度
+    # ═══════════════════════════════════════════════════════════
+
+    def get_vram_used_gb(self) -> float:
+        """获取当前专用显存使用量（GB），通过 nvidia-smi 查询"""
+        try:
+            if not self.__cuda:
+                return 0.0
+            import subprocess
+            result = subprocess.run(
+                ["nvidia-smi", "--query-gpu=memory.used", "--format=csv,noheader,nounits"],
+                capture_output=True, text=True, timeout=3)
+            if result.returncode == 0:
+                mb = float(result.stdout.strip().splitlines()[0].strip())
+                return mb / 1024.0
+        except Exception:
+            pass
+        # 回退：torch 报告（含共享内存，不够精确）
+        try:
+            import torch
+            return torch.cuda.memory_allocated(0) / (1024**3)
+        except Exception:
+            return 0.0
+
+    def get_vram_pressure(self) -> float:
+        """获取专用显存压力 (0-100%)。
+
+        返回值分级:
+          0-70%  : 安全 — 全力运行
+          70-85% : 警戒 — 可继续但需监控
+          85-95% : 危险 — 需主动释放/降批
+          95%+   : 紧急 — 强制 GC + 最小批次
+        """
+        dedicated = self.get_dedicated_vram_gb()
+        if dedicated <= 0:
+            return 0.0
+        used = self.get_vram_used_gb()
+        return min(100.0, used / dedicated * 100.0)
+
+    def adaptive_batch_size(self, requested: int,
+                            pressure_threshold: float = 85.0,
+                            min_batch: int = 8,
+                            reduction_factor: float = 0.5) -> int:
+        """根据当前显存压力动态调整批次大小。
+
+        pressure < 85%: 返回 requested (全力)
+        pressure 85-95%: 返回 requested × 0.5 (降半)
+        pressure > 95%: 返回 max(min_batch, requested × 0.25) (紧急)
+        """
+        pressure = self.get_vram_pressure()
+        if pressure < pressure_threshold:
+            return requested
+        if pressure < 95.0:
+            new_size = max(min_batch, int(requested * reduction_factor))
+            print(f"[VRAM调度] 压力 {pressure:.0f}% → 批次 {requested} → {new_size} (降半)")
+            return new_size
+        # 紧急：强制 GC + 最小批次
+        try:
+            import torch
+            torch.cuda.empty_cache()
+        except Exception:
+            pass
+        new_size = max(min_batch, int(requested * 0.25))
+        print(f"[VRAM调度] 压力 {pressure:.0f}%(紧急) → 批次 {requested} → {new_size} + GC")
+        return new_size
+
+    def vram_safe_gc(self, pressure_threshold: float = 80.0):
+        """当显存压力超过阈值时主动清理缓存，避免溢出到共享内存"""
+        pressure = self.get_vram_pressure()
+        if pressure >= pressure_threshold:
+            try:
+                import torch
+                torch.cuda.empty_cache()
+                return True
+            except Exception:
+                pass
+        return False
+
     def set_enabled(self, enable):
         self.__enabled = enable
 

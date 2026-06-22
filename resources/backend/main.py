@@ -574,7 +574,15 @@ class SubtitleRemover:
                     pass
                 # self.append_output(f'inpaint with mask: {mask_area_coordinates}')
                 _batch_offset = 0
-                for batch in batch_generator(frames_need_inpaint, config.getSttnMaxLoadNum()):
+                # ── VRAM 自适应批次：显存紧张时动态缩小批大小 ──
+                _base_batch_size = config.getSttnMaxLoadNum()
+                if self.hardware_accelerator.has_cuda():
+                    _base_batch_size = self.hardware_accelerator.adaptive_batch_size(
+                        _base_batch_size, min_batch=4)
+                for batch in batch_generator(frames_need_inpaint, _base_batch_size):
+                    # ── 每子批前检查显存，紧张时主动 GC ──
+                    if self.hardware_accelerator.has_cuda():
+                        self.hardware_accelerator.vram_safe_gc(pressure_threshold=85.0)
                     # 2. 调用批推理
                     _bsize = len(batch)
                     _raw_batch = frames_raw_original[_batch_offset:_batch_offset + _bsize]
