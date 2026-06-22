@@ -28,6 +28,9 @@ from backend.tools.theme_listener import SystemThemeListener
 from backend.tools.process_manager import ProcessManager
 from ui.advanced_setting_interface import AdvancedSettingInterface
 from ui.home_interface import HomeInterface
+from ui.video_editor_page import VideoEditorPage
+from ui.audio_ai_page import AudioAIPage
+from ui.ai_video_generation_page import AIVideoGenPage
 
 
 class SubtitleExtractorGUI(FluentWindow): 
@@ -75,15 +78,37 @@ class SubtitleExtractorGUI(FluentWindow):
         )
 
     def _create_layout(self):
-        # 创建主页面和高级设置页面
+        # ── 创建自定义导航图标 ──
+        def _make_icon(emoji, color="#4aa3df"):
+            """用 emoji 文字渲染 QIcon"""
+            pix = QtGui.QPixmap(24, 24)
+            pix.fill(Qt.transparent)
+            painter = QtGui.QPainter(pix)
+            font = QtGui.QFont("Segoe UI Emoji", 16)
+            painter.setFont(font)
+            painter.drawText(pix.rect(), Qt.AlignCenter, emoji)
+            painter.end()
+            return QtGui.QIcon(pix)
+
+        # 创建所有页面
         self.homeInterface = HomeInterface(self)
         self.homeInterface.setObjectName("HomeInterface")
+        self.videoEditorPage = VideoEditorPage(self)
+        self.videoEditorPage.setObjectName("VideoEditorPage")
+        self.audioAIPage = AudioAIPage(self)
+        self.audioAIPage.setObjectName("AudioAIPage")
+        self.aiVideoGenPage = AIVideoGenPage(self)
+        self.aiVideoGenPage.setObjectName("AIVideoGenPage")
         self.advancedSettingInterface = AdvancedSettingInterface(self)
         self.advancedSettingInterface.setObjectName("AdvancedSettingInterface")
-        
-        # 添加到主窗口作为子界面
-        self.addSubInterface(self.homeInterface,FluentIcon.HOME, tr['SubtitleExtractorGUI']['Title'])
-        self.addSubInterface(self.advancedSettingInterface, FluentIcon.SETTING, tr['Setting']['AdvancedSetting'], NavigationItemPosition.BOTTOM)
+
+        # 添加到主窗口导航
+        self.addSubInterface(self.homeInterface, FluentIcon.HOME, tr['SubtitleExtractorGUI']['Title'])
+        self.addSubInterface(self.videoEditorPage, _make_icon("🎬"), "视频自由修改大师")
+        self.addSubInterface(self.audioAIPage, _make_icon("🎵"), "声音自由生成修改大师")
+        self.addSubInterface(self.aiVideoGenPage, _make_icon("🤖"), "AI视频生成")
+        self.addSubInterface(self.advancedSettingInterface, FluentIcon.SETTING,
+                            tr['Setting']['AdvancedSetting'], NavigationItemPosition.BOTTOM)
 
     def on_navigation_item_changed(self, key):
         """导航项变更时的处理函数"""
