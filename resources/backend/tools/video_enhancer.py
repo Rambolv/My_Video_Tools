@@ -368,21 +368,29 @@ class VideoSuperResolution:
             _prog(100, False)
             _log(f"SR 完成，共处理 {processed} 帧")
 
-            # ── 用 FFmpeg 合并音轨 ──
+            # ── 用 FFmpeg 合并音轨 (源无音轨时直接输出无声视频) ──
             final_temp = tempfile.NamedTemporaryFile(suffix='.mp4', delete=False)
             final_temp_path = final_temp.name
             final_temp.close()
-            merge_cmd = [
-                ff, "-y",
-                "-i", temp_path,
-                "-i", get_readable_path(input_path),
-                "-vcodec", "copy",
-                "-acodec", "copy",
-                "-map", "0:v:0", "-map", "1:a:0?",
-                "-loglevel", "error",
-                final_temp_path,
-            ]
-            subprocess.check_output(merge_cmd, stdin=open(os.devnull), shell=False)
+            _audio_src = input_path if os.path.exists(input_path) else None
+            if _audio_src:
+                try:
+                    merge_cmd = [
+                        ff, "-y",
+                        "-i", temp_path,
+                        "-i", get_readable_path(_audio_src),
+                        "-vcodec", "copy",
+                        "-acodec", "copy",
+                        "-map", "0:v:0", "-map", "1:a:0?",
+                        "-loglevel", "error",
+                        final_temp_path,
+                    ]
+                    subprocess.check_output(merge_cmd, stdin=open(os.devnull), shell=False)
+                except Exception:
+                    _audio_src = None
+            if not _audio_src:
+                # 无音轨或合并失败 → 直接复制无声视频
+                shutil.copy2(temp_path, final_temp_path)
             # atomic rename
             if os.path.exists(final_temp_path):
                 shutil.move(final_temp_path, output_path)
@@ -920,6 +928,8 @@ def enhance_video_pipeline(
     current_input = input_path
     temp_files = []
     sr_first = config.enhanceSrFirst.value
+    # 最终输出目录 (用于清理残余中间文件)
+    _out_dir = os.path.dirname(os.path.abspath(output_path))
 
     # =========================================================
     # 内部函数：超分辨率处理步骤
@@ -1041,12 +1051,30 @@ def enhance_video_pipeline(
         _log(f"❌ 视频增强失败")
         raise
     finally:
+        # 清理已知中间文件
         for tf in temp_files:
             try:
                 if os.path.exists(tf):
                     os.unlink(tf)
             except Exception:
                 pass
+        # 清理遗留中间产物 (fi_tmp / sr_tmp / 无扩展名残留)
+        try:
+            import glob as _g
+            _patterns = [
+                os.path.join(_out_dir, "*.fi_tmp.mp4"),
+                os.path.join(_out_dir, "*.sr_tmp.mp4"),
+                os.path.join(_out_dir, "*_VSR"),        # 无扩展名残留
+                os.path.join(_out_dir, "*_VSR.tmp*"),   # 临时文件
+            ]
+            for _pat in _patterns:
+                for _f in _g.glob(_pat):
+                    try:
+                        os.unlink(_f)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
     return output_path
 
 

@@ -47,9 +47,13 @@ def merge_big_file_if_not_exists(dir, file, man_filename = None):
 def get_readable_path(path):
     if sys.platform != 'win32':
         return path
+    if not path or not os.path.exists(path):
+        return path  # 保持原路径, 文件不存在时短路径无意义
     buf = ctypes.create_unicode_buffer(4096)
-    ctypes.windll.kernel32.GetShortPathNameW(path, buf, 4096)
-    return buf.value
+    ret = ctypes.windll.kernel32.GetShortPathNameW(path, buf, 4096)
+    if ret > 0 and buf.value:
+        return buf.value
+    return path  # fallback: API 失败时返回原路径
 
 def read_image(path):
     if os.path.getsize(path) > 100*1024*1024: # 100MB
