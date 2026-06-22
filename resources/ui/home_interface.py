@@ -1819,18 +1819,19 @@ class HomeInterface(QWidget):
         """
         try:
             from backend.main import SubtitleRemover
-            enhanced_output = task.output_path.replace('_no_sub.mp4', '_enhanced.mp4')
-            if '_no_sub.' not in enhanced_output:
-                enhanced_output = task.output_path + '_enhanced.mp4'
+            # 增强输出路径: 在扩展名前插入 _enhanced
+            base, ext = os.path.splitext(task.output_path)
+            enhanced_output = f"{base}_enhanced{ext}"
 
             SubtitleRemover.run_enhancement_only(
                 input_path=task.output_path,
                 output_path=enhanced_output,
                 log_callback=lambda msg: self._append_output(f"[增强|{task.name}] {msg}"),
             )
-            # 用增强后的输出替换原输出
+            # 用增强后的输出替换原输出 (Windows 同盘移动是原子操作)
             import shutil
-            shutil.move(enhanced_output, task.output_path)
+            if os.path.exists(enhanced_output):
+                shutil.move(enhanced_output, task.output_path)
             self.task_list_component.update_task_status(task_index, TaskStatus.COMPLETED)
             self._append_output(f"✅ 增强完成: {task.name}")
         except Exception as e:

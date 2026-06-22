@@ -205,8 +205,7 @@ def _reassemble_video(
     try:
         ff = _find_ffmpeg()
         tempo = 1.0 / multiplier
-        from .video_enhancer import _build_atempo_str as build_atempo
-        # 使用 FFmpeg 合并
+        # 使用本地 _build_atempo 函数
         ac = _build_atempo(tempo)
         cmd = [ff, "-y", "-i", temp_path, "-i", orig_video,
                "-vcodec", "libx264", "-crf", "18",
