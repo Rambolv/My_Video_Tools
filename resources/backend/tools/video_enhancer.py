@@ -194,6 +194,7 @@ class VideoSuperResolution:
         height: int,
         log_callback=None,
         progress_callback=None,
+        audio_source: str = None,
     ) -> str:
         """增强整个视频 — FFmpeg 管道 + 多线程流水线
 
@@ -368,11 +369,12 @@ class VideoSuperResolution:
             _prog(100, False)
             _log(f"SR 完成，共处理 {processed} 帧")
 
-            # ── 用 FFmpeg 合并音轨 (源无音轨时直接输出无声视频) ──
+            # ── 用 FFmpeg 合并音轨 ──
             final_temp = tempfile.NamedTemporaryFile(suffix='.mp4', delete=False)
             final_temp_path = final_temp.name
             final_temp.close()
-            _audio_src = input_path if os.path.exists(input_path) else None
+            _audio_src = audio_source if audio_source else input_path
+            _audio_src = _audio_src if os.path.exists(_audio_src) else None
             if _audio_src:
                 try:
                     merge_cmd = [
@@ -633,6 +635,7 @@ class VideoFrameInterpolation:
         orig_fps: float,
         log_callback=None,
         progress_callback=None,
+        audio_source: str = None,
     ) -> str:
         """对整个视频做帧插值 — FFmpeg 管道 + 多线程流水线
 
@@ -828,8 +831,9 @@ class VideoFrameInterpolation:
 
             tempo = 1.0 / self._multiplier
             tempo_filter = _build_atempo(tempo)
+            _audio_src = audio_source if audio_source else input_path
             merge_cmd = [
-                ff, "-y", "-i", temp_path, "-i", get_readable_path(input_path),
+                ff, "-y", "-i", temp_path, "-i", get_readable_path(_audio_src),
                 "-vcodec", "copy",
                 "-map", "0:v:0",
                 "-filter_complex", f"[1:a]{tempo_filter}[a]",
@@ -926,9 +930,9 @@ def enhance_video_pipeline(
         return output_path
 
     current_input = input_path
+    audio_source = input_path  # 始终指向有音轨的原始输入
     temp_files = []
     sr_first = config.enhanceSrFirst.value
-    # 最终输出目录 (用于清理残余中间文件)
     _out_dir = os.path.dirname(os.path.abspath(output_path))
 
     # =========================================================
@@ -983,7 +987,8 @@ def enhance_video_pipeline(
                     h = int(cap_tmp.get(cv2.CAP_PROP_FRAME_HEIGHT))
                     cap_tmp.release()
                     sr.enhance_video(current_input, sr_path, fps, w, h,
-                        log_callback=_log, progress_callback=lambda p, f: _prog(int(p * (50 if (enable_sr and enable_fi) else 100) / 100), f))
+                        log_callback=_log, progress_callback=lambda p, f: _prog(int(p * (50 if (enable_sr and enable_fi) else 100) / 100), f),
+                        audio_source=audio_source)
                     current_input = sr_path
                     _log("超分辨率完成")
 
@@ -1027,7 +1032,8 @@ def enhance_video_pipeline(
         else:
             fi.interpolate_video(current_input, fi_path, fps2,
                 log_callback=_log, progress_callback=lambda p, f: _prog(
-                    50 + int(p * (50 if (enable_sr and enable_fi) else 100) / 100) if enable_sr else int(p * 100 / 100), f))
+                    50 + int(p * (50 if (enable_sr and enable_fi) else 100) / 100) if enable_sr else int(p * 100 / 100), f),
+                audio_source=audio_source)
             current_input = fi_path
             _log("帧插值完成")
 
