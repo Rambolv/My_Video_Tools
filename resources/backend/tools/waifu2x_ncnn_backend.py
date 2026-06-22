@@ -4,6 +4,7 @@ MIT License, by nihui (https://github.com/nihui/waifu2x-ncnn-vulkan)
 比 Python CUDA 更快，模型直接打包在 release 中，即开即用。
 """
 import os, glob, cv2, shutil, tempfile, subprocess
+from backend.tools.common_tools import natsorted
 
 _WAIFU2X_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "waifu2x_ncnn")
 
@@ -114,10 +115,10 @@ def enhance_video_waifu2x(input_path, output_path, scale=2, noise=-1, gpu_id=0,
 
         # 收集最终输出帧
         final_out = current_in
-        out_files = sorted(glob.glob(os.path.join(final_out, "*.png")))
+        out_files = natsorted(glob.glob(os.path.join(final_out, "*.png")))
         if not out_files:
             # 如果输出目录没有文件，可能输出到 frames_out
-            out_files = sorted(glob.glob(os.path.join(frames_out, "*.png")))
+            out_files = natsorted(glob.glob(os.path.join(frames_out, "*.png")))
         if not out_files:
             raise RuntimeError("waifu2x 未生成任何输出文件")
 

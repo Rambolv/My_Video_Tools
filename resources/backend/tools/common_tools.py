@@ -77,6 +77,26 @@ def read_image(path):
 import re as _re
 from pathlib import Path as _Path
 
+
+def natsort_key(filepath: str):
+    """自然排序键: 提取文件名中的数字用于正确排序。
+
+    解决 sorted() 的字典序问题:
+      字典序: 0.png, 1.png, 10.png, 2.png  (错误!)
+      自然序: 0.png, 1.png, 2.png, 10.png  (正确)
+    """
+    name = os.path.basename(filepath)
+    # 提取第一段连续数字作为主排序键
+    m = _re.search(r'(\d+)', name)
+    if m:
+        return int(m.group(1))
+    return 0
+
+
+def natsorted(file_list):
+    """自然排序文件列表 (按文件名中数字升序)。"""
+    return sorted(file_list, key=natsort_key)
+
 def vsr_clean_stem(stem: str) -> str:
     """清理文件名 stem 中的所有 VSR 后缀 (新旧兼容)。"""
     stem = _re.sub(r'_VSR.*$', '', stem)             # 新规范 _VSR*

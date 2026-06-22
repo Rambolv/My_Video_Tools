@@ -14,6 +14,7 @@ import subprocess
 import numpy as np
 
 from backend.config import config
+from backend.tools.common_tools import natsorted
 
 _NCNN_DIR = os.path.dirname(os.path.abspath(__file__))  # tools/
 _NCNN_EXE = os.path.join(_NCNN_DIR, "rife_ncnn", "rife-ncnn-vulkan.exe")
@@ -188,7 +189,7 @@ def _reassemble_video(
     temp_path = temp_out.name
     temp_out.close()
 
-    frame_files = sorted(glob.glob(os.path.join(frames_dir, "*.png")))
+    frame_files = natsorted(glob.glob(os.path.join(frames_dir, "*.png")))
     if not frame_files:
         raise RuntimeError("没有插值帧可组装")
     h, w = cv2.imread(frame_files[0]).shape[:2]
@@ -299,7 +300,7 @@ def interpolate_video_ncnn(
         fps = _extract_frames(input_path, frames_in, _log)
         _prog(10, False)
 
-        frame_files = sorted(glob.glob(os.path.join(frames_in, "*.png")))
+        frame_files = natsorted(glob.glob(os.path.join(frames_in, "*.png")))
         total_pairs = len(frame_files) - 1
 
         # 2. 目录模式批量插值（一次启动 exe，不反复加载模型）
@@ -319,7 +320,7 @@ def interpolate_video_ncnn(
             subprocess.check_output(cmd, stderr=subprocess.DEVNULL)
 
             # 交错合并：原帧 + 插值帧
-            interp_files = sorted(glob.glob(os.path.join(frames_out, "*.png")))
+            interp_files = natsorted(glob.glob(os.path.join(frames_out, "*.png")))
             merged = os.path.join(tmp_root, "merged")
             os.makedirs(merged, exist_ok=True)
             out_idx = 0
@@ -358,8 +359,8 @@ def interpolate_video_ncnn(
                 subprocess.check_output(cmd, stderr=subprocess.DEVNULL)
 
                 # 交错合并
-                orig = sorted(glob.glob(os.path.join(work, "*.png")))
-                interp = sorted(glob.glob(os.path.join(level_out, "*.png")))
+                orig = natsorted(glob.glob(os.path.join(work, "*.png")))
+                interp = natsorted(glob.glob(os.path.join(level_out, "*.png")))
                 merged = os.path.join(tmp_root, f"merged_{level}")
                 os.makedirs(merged, exist_ok=True)
                 out_idx = 0
@@ -379,7 +380,7 @@ def interpolate_video_ncnn(
 
             # 如果倍率不是2的幂，取前 multiplier 倍帧
             if multiplier != 2 ** n_levels:
-                all_f = sorted(glob.glob(os.path.join(work, "*.png")))
+                all_f = natsorted(glob.glob(os.path.join(work, "*.png")))
                 target = len(frame_files) * multiplier
                 work = os.path.join(tmp_root, "trimmed")
                 os.makedirs(work, exist_ok=True)

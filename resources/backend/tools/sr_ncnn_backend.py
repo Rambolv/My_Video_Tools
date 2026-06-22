@@ -5,6 +5,7 @@
 """
 import os, sys, glob, cv2, shutil, tempfile, subprocess, zipfile, io, warnings
 from backend.config import config
+from backend.tools.common_tools import natsorted
 
 _SR_NCNN_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sr_ncnn")
 _MODELS_DIR = os.path.join(_SR_NCNN_DIR, "models")
@@ -240,7 +241,7 @@ def enhance_video_ncnn(input_path, output_path, scale=4, gpu_id=0, log_cb=None, 
         # 组装视频
         _log("步骤 3/3: 组装视频…")
         out_w, out_h = 0, 0
-        out_files = sorted(glob.glob(os.path.join(frames_out, "*.png")))
+        out_files = natsorted(glob.glob(os.path.join(frames_out, "*.png")))
         if out_files:
             h, w = cv2.imread(out_files[0]).shape[:2]
             out_w, out_h = w, h
