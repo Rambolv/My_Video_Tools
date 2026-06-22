@@ -6,6 +6,7 @@ import threading
 import multiprocessing
 import time
 import traceback
+from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from PySide6.QtWidgets import (QWidget, QHBoxLayout, QVBoxLayout, QSplitter,
                                QTabWidget, QScrollArea, QSizePolicy)
@@ -1686,16 +1687,23 @@ class HomeInterface(QWidget):
             
             process.join()
             
-            # 任务完成处理
+            # 任务完成处理 — 查找实际输出文件（扫除模式可能改名）
             task = self.task_list_component.get_task(task_index)
             if process.exitcode == 0 and task and task.status == TaskStatus.PROCESSING:
-                # 任务正常完成
+                # 扫描实际输出（run()可能覆盖video_out_path，如_Nclean后缀）
+                import glob as _glob
+                out_dir = os.path.dirname(output_path)
+                out_stem = Path(task.path).stem
+                candidates = _glob.glob(os.path.join(out_dir, f"{out_stem}*_no_sub*.mp4"))
+                # 优先取最新的文件
+                if candidates:
+                    candidates.sort(key=os.path.getmtime, reverse=True)
+                    output_path = candidates[0]
                 task.output_path = output_path
                 self.task_list_component.update_task_status(task_index, TaskStatus.COMPLETED)
                 self.task_list_component.update_task_progress(task_index, 100)
                 self._append_output(tr['Main']['FinishedProcessing'].format(output_path))
             elif task and task.status == TaskStatus.PROCESSING:
-                # 非零退出码但状态仍为处理中，标记失败
                 self.task_list_component.update_task_status(task_index, TaskStatus.FAILED)
                 
         except Exception as e:
