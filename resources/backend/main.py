@@ -928,7 +928,6 @@ class SubtitleRemover:
                             pass
                         self.video_temp_file = tempfile.NamedTemporaryFile(suffix='.mp4', delete=False)
                         self.video_temp_file.close()
-                        import shutil
                         shutil.copy2(_enhanced_path, self.video_temp_file.name)
                         try:
                             os.unlink(_enhanced_path)
@@ -1152,7 +1151,6 @@ class SubtitleRemover:
             config.enableFrameInterpolation.value
         )
         if not _enhance_enabled:
-            import shutil
             shutil.copy2(input_path, output_path)
             return output_path
 
