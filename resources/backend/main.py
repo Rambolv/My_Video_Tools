@@ -698,16 +698,34 @@ class SubtitleRemover:
             tbar.update(1)
             self.progress_total = 100
         else:
-            # 精准模式下，获取场景分割的帧号，进一步切割
             self.apply_processing_depth()
             self.log_model()
 
-            # ---- 多循环暴力扫除模式：变形自适应遮罩 + 强时序滤波 ----
-            if config.sweepModeEnabled.value:
+            # ── 轻量级字幕预扫描：检测到无字幕直接跳过模型加载 ──
+            _mode_needs_detection = config.inpaintMode.value not in (
+                InpaintMode.STTN_AUTO,  # STTN-Auto 不做检测, 始终需要模型
+            )
+            _skip_inpaint = False
+            if _mode_needs_detection:
+                self.append_output("🔍 字幕预扫描中…")
+                try:
+                    _pre_detector = SubtitleDetect(self.video_path, self.sub_areas)
+                    _pre_list = _pre_detector.find_subtitle_frame_no(sub_remover=self)
+                    del _pre_detector
+                    gc.collect()
+                    if len(_pre_list) == 0:
+                        self.append_output("⚡ 未检测到字幕, 跳过修复模型加载, 直接进入后续阶段")
+                        _skip_inpaint = True
+                    else:
+                        self.append_output(f"  检测到 {len(_pre_list)} 个含字幕帧, 加载修复模型…")
+                except Exception as e:
+                    self.append_output(f"  预扫描跳过: {e} (将正常加载模型)")
+
+            # ---- 多循环暴力扫除模式 ----
+            if config.sweepModeEnabled.value and not _skip_inpaint:
                 iters = config.sweepIterations.value
                 config.set(config.subtitleTimelineBackwardFrameCount, 20, save=False)
                 config.set(config.subtitleTimelineForwardFrameCount, 20, save=False)
-                # 强制开启时序滤波
                 config.set(config.temporalMedianFilter, True, save=False)
                 config.set(config.temporalMedianWindow, 31, save=False)
                 config.set(config.forceSubAreaMaskAllFrames, True, save=False)
@@ -724,57 +742,58 @@ class SubtitleRemover:
 
             oom_occurred = False
             _inpaint_ok = True
-            try:
-                if config.inpaintMode.value == InpaintMode.PROPAINTER:
-                    self.propainter_mode(tbar)
-                elif config.inpaintMode.value == InpaintMode.STTN_AUTO:
-                    self.sttn_auto_mode(tbar)
-                elif config.inpaintMode.value == InpaintMode.STTN_DET:
-                    self.video_inpaint(tbar, self.sttn_det_inpaint)
-                elif config.inpaintMode.value == InpaintMode.LAMA:
-                    self.video_inpaint(tbar, self.lama_inpaint)
-                elif config.inpaintMode.value == InpaintMode.E2FGVI:
-                    self.e2fgvi_mode(tbar)
-                elif config.inpaintMode.value == InpaintMode.OPENCV:
-                    self.video_inpaint(tbar, OpenCVInpaint())
-                else:
-                    raise Exception(f'inpaint mode: {config.inpaintMode.value} not implemented')
-            except RuntimeError as e:
-                if "out of memory" in str(e).lower():
-                    oom_occurred = True
-                    self.append_output(f"❌ [VRAM监控] 显存溢出(OOM)! 当前配置可能导致爆显存")
-                raise
-            except Exception as e:
-                # 未检测到字幕等非致命错误：直接透传原视频，继续后续增强
-                err_str = str(e)
-                self.append_output(f"⚠️ 字幕去除阶段跳过: {err_str}")
-                self.append_output("  → 原视频将直接进入后续处理阶段（增强/输出）")
-                _inpaint_ok = False
-            finally:
-                if vram_monitor is not None:
-                    peak_gb = vram_monitor.stop()
-                    try:
-                        from backend.tools.vram_monitor import save_record
-                        save_record(
-                            inpaint_mode=config.inpaintMode.value.value,
-                            detect_mode=config.subtitleDetectMode.value.value,
-                            processing_depth=config.processingDepth.value,
-                            video_width=self.frame_width,
-                            video_height=self.frame_height,
-                            concurrent_tasks=config.maxConcurrentTasks.value,
-                            peak_vram_gb=peak_gb,
-                            oom=oom_occurred,
-                        )
-                        status = "⚠️OOM" if oom_occurred else f"峰值 {peak_gb:.1f}GB"
-                        self.append_output(f"[VRAM监控] 已记录: {status}")
-                    except Exception:
-                        pass
+            if not _skip_inpaint:
+                try:
+                    if config.inpaintMode.value == InpaintMode.PROPAINTER:
+                        self.propainter_mode(tbar)
+                    elif config.inpaintMode.value == InpaintMode.STTN_AUTO:
+                        self.sttn_auto_mode(tbar)
+                    elif config.inpaintMode.value == InpaintMode.STTN_DET:
+                        self.video_inpaint(tbar, self.sttn_det_inpaint)
+                    elif config.inpaintMode.value == InpaintMode.LAMA:
+                        self.video_inpaint(tbar, self.lama_inpaint)
+                    elif config.inpaintMode.value == InpaintMode.E2FGVI:
+                        self.e2fgvi_mode(tbar)
+                    elif config.inpaintMode.value == InpaintMode.OPENCV:
+                        self.video_inpaint(tbar, OpenCVInpaint())
+                    else:
+                        raise Exception(f'inpaint mode: {config.inpaintMode.value} not implemented')
+                except RuntimeError as e:
+                    if "out of memory" in str(e).lower():
+                        oom_occurred = True
+                        self.append_output(f"❌ [VRAM监控] 显存溢出(OOM)! 当前配置可能导致爆显存")
+                    raise
+                except Exception as e:
+                    # 未检测到字幕等非致命错误：直接透传原视频，继续后续增强
+                    err_str = str(e)
+                    self.append_output(f"⚠️ 字幕去除阶段跳过: {err_str}")
+                    self.append_output("  → 原视频将直接进入后续处理阶段（增强/输出）")
+                    _inpaint_ok = False
+                finally:
+                    if vram_monitor is not None:
+                        peak_gb = vram_monitor.stop()
+                        try:
+                            from backend.tools.vram_monitor import save_record
+                            save_record(
+                                inpaint_mode=config.inpaintMode.value.value,
+                                detect_mode=config.subtitleDetectMode.value.value,
+                                processing_depth=config.processingDepth.value,
+                                video_width=self.frame_width,
+                                video_height=self.frame_height,
+                                concurrent_tasks=config.maxConcurrentTasks.value,
+                                peak_vram_gb=peak_gb,
+                                oom=oom_occurred,
+                            )
+                            status = "⚠️OOM" if oom_occurred else f"峰值 {peak_gb:.1f}GB"
+                            self.append_output(f"[VRAM监控] 已记录: {status}")
+                        except Exception:
+                            pass
 
         self.video_cap.release()
         self.video_writer.release()
 
-        # 如果字幕去除失败（如无字幕），把原视频复制到输出路径
-        if not _inpaint_ok:
+        # 如果字幕去除失败/跳过（如无字幕），把原视频复制到输出路径
+        if not _inpaint_ok or _skip_inpaint:
             self.append_output("  → 复制原视频作为后续处理输入（无字幕去除）")
             try:
                 self.video_temp_file.close()
