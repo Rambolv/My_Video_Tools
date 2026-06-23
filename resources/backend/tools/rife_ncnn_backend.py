@@ -156,27 +156,33 @@ def _extract_frames(video_path: str, out_dir: str, log_cb=None) -> float:
     import subprocess as _sp
     import glob as _glob
     from backend.tools.ffmpeg_cli import FFmpegCLI
+    from backend.tools.common_tools import get_readable_path
 
-    # 先探测 fps
-    cap = cv2.VideoCapture(video_path)
+    # 探测 fps (使用短路径避免Unicode问题)
+    cap = cv2.VideoCapture(get_readable_path(video_path))
     if not cap.isOpened():
         raise IOError(f"无法打开: {video_path}")
     total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     fps = cap.get(cv2.CAP_PROP_FPS)
+    if fps <= 0:
+        fps = 30.0  # fallback: OpenCV读取失败时使用默认值
     cap.release()
+
+    _log(f"  源: {total}帧, {fps}fps")
 
     os.makedirs(out_dir, exist_ok=True)
     ff = FFmpegCLI.instance().ffmpeg_path
     cmd = [
         ff, "-y", "-i", video_path,
-        "-start_number", "0",
         "-q:v", "1",
         "-loglevel", "error",
         os.path.join(out_dir, "%08d.png"),
     ]
     _sp.check_output(cmd, stdin=open(os.devnull), shell=False)
     extracted = len(_glob.glob(os.path.join(out_dir, "*.png")))
-    _log(f"  提取完成: {extracted} 帧, {fps}fps")
+    if extracted != total and total > 0:
+        _log(f"  ⚠️ 帧数不匹配: 预期{total}, 实际提取{extracted}")
+    _log(f"  提取完成: {extracted} 帧")
     return fps
 
 
@@ -309,11 +315,10 @@ def interpolate_video_ncnn(
         os.makedirs(frames_out, exist_ok=True)
 
         if multiplier == 2:
-            # 目录模式: 交错合并 原帧→插值帧 (Flowframes验证的正确顺序)
-            cmd = [_NCNN_EXE, "-i", frames_in, "-o", frames_out,
+            # 目录模式: 交错合并 原帧→插值帧 (参考Flowframes)
+            cmd = [_NCNN_EXE, "-v", "-i", frames_in, "-o", frames_out,
                    "-m", model_dir, "-g", str(gpu_id),
-                   "-j", _ncnn_threads(),
-                   "-f", "%08d.png"]
+                   "-j", _ncnn_threads()]
             if tta:
                 cmd.append("-x")
             _log("  目录模式 2x 插值…")
@@ -344,10 +349,9 @@ def interpolate_video_ncnn(
             for level in range(n_levels):
                 level_out = os.path.join(tmp_root, f"level_{level}")
                 os.makedirs(level_out, exist_ok=True)
-                cmd = [_NCNN_EXE, "-i", work, "-o", level_out,
+                cmd = [_NCNN_EXE, "-v", "-i", work, "-o", level_out,
                        "-m", model_dir, "-g", str(gpu_id),
-                       "-j", _ncnn_threads(),
-                       "-f", "%08d.png"]
+                       "-j", _ncnn_threads()]
                 if tta:
                     cmd.append("-x")
                 _log(f"  第 {level+1} 级 2x 插值…")
