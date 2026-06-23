@@ -202,10 +202,15 @@ def enhance_video_ncnn(input_path, output_path, scale=4, gpu_id=0, log_cb=None, 
         # 提取帧（FFmpeg 直接解码→PNG，比 cv2 循环快 3-5 倍）
         _log("步骤 1/3: 提取视频帧…")
         from backend.tools.ffmpeg_cli import FFmpegCLI
+        from backend.tools.common_tools import get_readable_path
         ff = FFmpegCLI.instance().ffmpeg_path
-        cap = cv2.VideoCapture(input_path)
+        cap = cv2.VideoCapture(get_readable_path(input_path))
+        if not cap.isOpened():
+            raise IOError(f"无法打开视频: {input_path}")
         total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         fps = cap.get(cv2.CAP_PROP_FPS)
+        if fps <= 0:
+            fps = 30.0  # fallback, FFmpeg提取帧不受影响
         cap.release()
         cmd_extract = [
             ff, "-y", "-i", input_path,
