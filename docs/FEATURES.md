@@ -296,6 +296,70 @@ RealESRGAN_x2plus            # 2x 超分
 - ⚠️ **配对模式静默失败**：特定 PNG 解码失败时返回 `STATUS_ACCESS_VIOLATION`，但仍写入输出文件
 - ⚠️ **模型兼容性**：旧版 exe 不支持 rife-v4.6 的 `Eltwise` 层，需使用 rife-v3.1 模型
 
+### 7.5 性能基准测试
+
+**测试平台**：RTX 4090, 75帧 640×360 输入
+
+| 操作 | 输出分辨率/帧率 | 耗时 |
+|------|----------------|------|
+| Real-ESRGAN 4x SR (Python CUDA) | 2560×1440 | 10.1s |
+| RIFE 2x FI (Python CUDA) | 30fps | 2.5s |
+| SR→FI 组合管道 | 2560×1440 @ 30fps | 182.7s |
+| STTN Auto 字幕去除（优化后） | - | 速度+30~50%，显存-50% |
+| 多循环扫除（优化后） | - | 推理次数 3x→2x |
+
+---
+
+## 8. 新增功能模块（Post-v1.4.0）
+
+### 8.1 VRAM 主动调度系统
+
+在被动监控基础上，新增主动调度系统：
+
+- **显存压力实时监控**：持续跟踪 GPU 专用显存使用率
+- **自适应批次大小**：根据剩余显存动态调整每批处理帧数
+- **动态 GPU 内存回收**：空闲时主动触发 `torch.cuda.empty_cache()`
+- **多任务分阶段调度**：字幕/SR/FI 模型分阶段加载，防止显存叠加 OOM
+- **锁定专用显存开关**：防止 Windows WDDM 溢出到共享内存，96% 软限位仅用板载显存
+
+### 8.2 新增页面
+
+| 页面 | 文件 | 说明 |
+|------|------|------|
+| AI 视频生成 | `ai_video_generation_page.py` | AI 视频生成功能入口 |
+| AI 音频处理 | `audio_ai_page.py` | 音频处理功能入口 |
+| 视频编辑器 | `video_editor_page.py` | 视频剪辑编辑功能 |
+
+### 8.3 ncnn 后端体系
+
+| 后端 | 引擎 | 状态 |
+|------|------|------|
+| `sr_ncnn_backend.py` | realesrgan-ncnn-vulkan | ✅ Python 优先，ncnn 备选 |
+| `rife_ncnn_backend.py` | rife-ncnn-vulkan | ⚠️ 配对模式可用但慢 |
+| `waifu2x_ncnn_backend.py` | waifu2x-ncnn-vulkan | ✅ 可用 |
+
+### 8.4 新增工具模块
+
+| 模块 | 功能 |
+|------|------|
+| `resource_manager.py` | 统一管理模型下载、路径解析 |
+| `config_profile.py` | 多配置方案保存/切换 |
+| `watermark_tracker.py` | 跨帧水印位置预测与追踪 |
+| `model_compat.py` | 模型版本兼容处理 |
+| `theme_listener.py` | 系统主题实时监听切换 |
+| `gpu_process_monitor.py` | GPU 进程实时监控 |
+| `merge_video.py` | 多片段视频合并 |
+
+### 8.5 新增 UI 组件
+
+| 组件 | 功能 |
+|------|------|
+| `startup_dialog.py` | 启动弹窗（项目信息、硬件建议、捐赠二维码） |
+| `donation_dialog.py` | 统一打赏弹窗组件 |
+| `gpu_monitor_dialog.py` | GPU 实时监控弹窗（进程排名表格） |
+
+---
+
 ### 7.5 增强管道工作流
 
 ```

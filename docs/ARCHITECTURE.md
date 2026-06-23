@@ -81,6 +81,7 @@ resources/
 │   │   ├── constant.py             # 枚举常量 (InpaintMode, SubtitleDetectMode)
 │   │   ├── subtitle_detect.py      # SubtitleDetect 字幕检测
 │   │   ├── subtitle_extractor.py   # SubtitleExtractor 字幕提取
+│   │   ├── video_enhancer.py       # VideoEnhancer 视频增强(SR+FI)
 │   │   ├── vram_estimator.py       # VRAM 显存估算器
 │   │   ├── vram_monitor.py         # VRAM 被动监控器
 │   │   ├── model_config.py         # 模型路径配置
@@ -88,23 +89,47 @@ resources/
 │   │   ├── ffmpeg_cli.py           # FFmpeg 封装
 │   │   ├── version_service.py      # 版本更新服务
 │   │   ├── process_manager.py      # 进程管理器
+│   │   ├── resource_manager.py     # 资源管理器(模型下载)
 │   │   ├── inpaint_tools.py        # 修复工具函数
 │   │   ├── common_tools.py         # 通用工具
 │   │   ├── ocr.py                  # OCR 坐标转换
 │   │   ├── watermark_detect.py     # 水印模板检测
+│   │   ├── watermark_tracker.py    # 水印跨帧追踪
 │   │   ├── sam2_detect.py          # SAM2 水印检测
-│   │   └── concurrent/             # 并发任务管理
+│   │   ├── model_compat.py         # 模型兼容层
+│   │   ├── config_profile.py       # 配置方案管理
+│   │   ├── args_handler.py         # CLI 参数处理
+│   │   ├── makedist.py             # 发布包构建工具
+│   │   ├── merge_video.py          # 视频合并工具
+│   │   ├── gpu_process_monitor.py  # GPU 进程实时监控
+│   │   ├── theme_listener.py       # 系统主题监听
+│   │   ├── subtitle_remover_remote_call.py # 远程调用接口
+│   │   ├── sr_ncnn_backend.py      # Real-ESRGAN ncnn 后端
+│   │   ├── rife_ncnn_backend.py    # RIFE ncnn 后端
+│   │   ├── waifu2x_ncnn_backend.py # waifu2x ncnn 后端
+│   │   ├── concurrent/             # 并发任务管理
+│   │   ├── rife_ncnn/              # RIFE ncnn 引擎文件
+│   │   ├── sr_ncnn/                # SR ncnn 引擎文件
+│   │   ├── waifu2x_ncnn/           # waifu2x ncnn 引擎文件
+│   │   └── train/                  # 模型训练脚本
 │   ├── models/                     # AI 模型文件
 │   └── scenedetect/                # 场景检测
 ├── ui/
 │   ├── home_interface.py           # 主页界面
+│   ├── ai_video_generation_page.py # AI 视频生成页
+│   ├── audio_ai_page.py            # AI 音频处理页
+│   ├── video_editor_page.py        # 视频编辑器页
+│   ├── setting_interface.py        # 设置面板
 │   ├── setting_interface.py        # 设置面板
 │   ├── advanced_setting_interface.py # 高级设置页
 │   ├── component/
 │   │   ├── func_card.py            # 可折叠功能卡片 + 帮助按钮
 │   │   ├── video_display_component.py  # 视频显示组件
 │   │   ├── task_list_component.py  # 任务列表组件
-│   │   └── watermark_template_widget.py # 水印模板管理
+│   │   ├── watermark_template_widget.py # 水印模板管理
+│   │   ├── startup_dialog.py       # 启动弹窗(项目信息/捐赠)
+│   │   ├── donation_dialog.py      # 统一打赏弹窗
+│   │   └── gpu_monitor_dialog.py   # GPU 实时监控弹窗
 │   └── icon/
 │       └── my_fluent_icon.py       # 自定义图标
 ├── config/

@@ -295,6 +295,70 @@ RealESRGAN_x2plus            # 2x SR
 - ⚠️ **Pair mode silent failures**: `STATUS_ACCESS_VIOLATION` on some PNG decodes, still writes output file
 - ⚠️ **Model compatibility**: Old exe doesn't support rife-v4.6 `Eltwise` layer, use rife-v3.1 models
 
+### 7.5 Performance Benchmarks
+
+**Test Platform**: RTX 4090, 75 frames 640×360 input
+
+| Operation | Output Resolution/FPS | Time |
+|-----------|----------------------|------|
+| Real-ESRGAN 4x SR (Python CUDA) | 2560×1440 | 10.1s |
+| RIFE 2x FI (Python CUDA) | 30fps | 2.5s |
+| SR→FI Pipeline | 2560×1440 @ 30fps | 182.7s |
+| STTN Auto (optimized) | - | Speed +30~50%, VRAM -50% |
+| Multi-Sweep (optimized) | - | Inference 3x→2x |
+
+---
+
+## 8. New Feature Modules (Post-v1.4.0)
+
+### 8.1 VRAM Active Scheduling System
+
+Built on top of passive monitoring, the new active scheduling system:
+
+- **Real-time VRAM Pressure Monitoring**: Continuously tracks dedicated GPU memory usage
+- **Adaptive Batch Size**: Dynamically adjusts frames per batch based on remaining VRAM
+- **Dynamic GPU Memory Reclamation**: Triggers `torch.cuda.empty_cache()` during idle
+- **Multi-Task Phased Scheduling**: Subtitle/SR/FI models load phase-by-phase to prevent OOM
+- **Dedicated VRAM Lock**: Prevents Windows WDDM spillover, 96% soft-limit for onboard memory only
+
+### 8.2 New Pages
+
+| Page | File | Description |
+|------|------|-------------|
+| AI Video Generation | `ai_video_generation_page.py` | AI video generation entry |
+| AI Audio Processing | `audio_ai_page.py` | Audio processing features |
+| Video Editor | `video_editor_page.py` | Video clip editing |
+
+### 8.3 ncnn Backend System
+
+| Backend | Engine | Status |
+|---------|--------|--------|
+| `sr_ncnn_backend.py` | realesrgan-ncnn-vulkan | ✅ Python preferred, ncnn fallback |
+| `rife_ncnn_backend.py` | rife-ncnn-vulkan | ⚠️ Pair mode works but slow |
+| `waifu2x_ncnn_backend.py` | waifu2x-ncnn-vulkan | ✅ Working |
+
+### 8.4 New Tool Modules
+
+| Module | Description |
+|--------|-------------|
+| `resource_manager.py` | Unified model download & path management |
+| `config_profile.py` | Multi-config save/switch |
+| `watermark_tracker.py` | Cross-frame watermark position tracking |
+| `model_compat.py` | Model version compatibility |
+| `theme_listener.py` | System theme real-time switching |
+| `gpu_process_monitor.py` | GPU process real-time monitoring |
+| `merge_video.py` | Multi-segment video merging |
+
+### 8.5 New UI Components
+
+| Component | Description |
+|-----------|-------------|
+| `startup_dialog.py` | Startup dialog (project info, hardware tips, donation QR) |
+| `donation_dialog.py` | Unified donation dialog component |
+| `gpu_monitor_dialog.py` | GPU real-time monitor dialog (process ranking table) |
+
+---
+
 ### 7.5 Enhancement Pipeline Workflow
 
 ```

@@ -6,6 +6,26 @@
 
 ### ✨ New Features
 
+- **Video Enhancement System**: Super-Resolution (Real-ESRGAN) + waifu2x Anime SR + Frame Interpolation (RIFE)
+- **Enhancement Pipeline**: SR→FI or FI→SR processing order, any combination supported
+- **Three ncnn Backends**: Real-ESRGAN ncnn, RIFE ncnn, waifu2x ncnn standalone backends
+- **VRAM Active Scheduling**: Real-time VRAM pressure monitoring + adaptive batch size + dynamic GPU GC
+- **Multi-Task Phased Scheduling**: Subtitle/SR/FI models load phase-by-phase to prevent VRAM stacking OOM
+- **Dedicated VRAM Lock**: Prevents Windows WDDM spillover to shared memory, toggleable
+- **GPU Real-Time Monitor Dialog**: nvidia-smi polling with process ranking by GPU compute load
+- **STTN Pipeline Optimization**: 30~50% speed boost, 50% VRAM reduction
+- **Multi-Sweep Pipeline Optimization**: Inference 3x→2x, import improvement, window reduction
+- **AI Navigation Pages**: AI Video Generation, AI Audio, Video Editor — three independent pages
+- **Unified Donation Dialog**: Centralized donation entry across all pages
+- **Config Profile Management**: `config_profile.py` for saving/switching configurations
+- **Resource Manager**: `resource_manager.py` unified model download & path management
+- **Watermark Tracker**: `watermark_tracker.py` cross-frame watermark position prediction & tracking
+- **Theme Change Listener**: `theme_listener.py` real-time system light/dark theme switching
+- **Video Merge Tool**: `merge_video.py` multi-segment video merging
+- **Model Compatibility Layer**: `model_compat.py` handles model version compatibility
+- **CLI Args Handler**: `args_handler.py` command-line argument parsing
+- **Distribution Builder**: `makedist.py` automated release package building
+
 - **Processing Depth Slider**: 0-100 continuous drag, real-time interpolation of all model parameters (mask dilation, timeline, reference frames, etc.)
 - **Subtitle Extraction**: Full pipeline based on PaddleOCR, supports Row/Column/Floating three modes
 - **Joint Proofreading**: Three different OCR models extract separately, then merge for best results

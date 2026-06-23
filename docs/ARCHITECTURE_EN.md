@@ -80,6 +80,7 @@ resources/
 │   │   ├── constant.py             # Enum constants (InpaintMode, SubtitleDetectMode)
 │   │   ├── subtitle_detect.py      # SubtitleDetect
 │   │   ├── subtitle_extractor.py   # SubtitleExtractor
+│   │   ├── video_enhancer.py       # VideoEnhancer (SR+FI pipeline)
 │   │   ├── vram_estimator.py       # VRAM estimator
 │   │   ├── vram_monitor.py         # VRAM passive monitor
 │   │   ├── model_config.py         # Model path config
@@ -87,23 +88,46 @@ resources/
 │   │   ├── ffmpeg_cli.py           # FFmpeg wrapper
 │   │   ├── version_service.py      # Version update service
 │   │   ├── process_manager.py      # Process manager
+│   │   ├── resource_manager.py     # Resource manager (model download)
 │   │   ├── inpaint_tools.py        # Inpainting utility functions
 │   │   ├── common_tools.py         # Common utilities
 │   │   ├── ocr.py                  # OCR coordinate conversion
 │   │   ├── watermark_detect.py     # Watermark template detection
+│   │   ├── watermark_tracker.py    # Cross-frame watermark tracking
 │   │   ├── sam2_detect.py          # SAM2 watermark detection
-│   │   └── concurrent/             # Concurrent task management
+│   │   ├── model_compat.py         # Model compatibility layer
+│   │   ├── config_profile.py       # Config profile management
+│   │   ├── args_handler.py         # CLI args handling
+│   │   ├── makedist.py             # Distribution builder
+│   │   ├── merge_video.py          # Video merge tool
+│   │   ├── gpu_process_monitor.py  # GPU process real-time monitor
+│   │   ├── theme_listener.py       # System theme listener
+│   │   ├── subtitle_remover_remote_call.py # Remote call interface
+│   │   ├── sr_ncnn_backend.py      # Real-ESRGAN ncnn backend
+│   │   ├── rife_ncnn_backend.py    # RIFE ncnn backend
+│   │   ├── waifu2x_ncnn_backend.py # waifu2x ncnn backend
+│   │   ├── concurrent/             # Concurrent task management
+│   │   ├── rife_ncnn/              # RIFE ncnn engine files
+│   │   ├── sr_ncnn/                # SR ncnn engine files
+│   │   ├── waifu2x_ncnn/           # waifu2x ncnn engine files
+│   │   └── train/                  # Model training scripts
 │   ├── models/                     # AI model files
 │   └── scenedetect/                # Scene detection
 ├── ui/
 │   ├── home_interface.py           # Home page interface
+│   ├── ai_video_generation_page.py # AI Video Generation page
+│   ├── audio_ai_page.py            # AI Audio page
+│   ├── video_editor_page.py        # Video Editor page
 │   ├── setting_interface.py        # Settings panel
 │   ├── advanced_setting_interface.py # Advanced settings page
 │   ├── component/
 │   │   ├── func_card.py            # Collapsible function card + help button
 │   │   ├── video_display_component.py  # Video display component
 │   │   ├── task_list_component.py  # Task list component
-│   │   └── watermark_template_widget.py # Watermark template management
+│   │   ├── watermark_template_widget.py # Watermark template management
+│   │   ├── startup_dialog.py       # Startup dialog (project info/donation)
+│   │   ├── donation_dialog.py      # Unified donation dialog
+│   │   └── gpu_monitor_dialog.py   # GPU real-time monitor dialog
 │   └── icon/
 │       └── my_fluent_icon.py       # Custom icons
 ├── config/

@@ -140,7 +140,7 @@ mindmap
 ## 五、数据统计
 
 ```
-                   原版 v1.4.0    VSR魔改版
+                   原版 v1.4.0    VSR魔改版 v1.4.0
 GUI框架            PySimpleGUI    PySide6+qfluentwidgets
 修复算法              3种            6种
 检测模型              4种            8种
@@ -148,9 +148,15 @@ GUI框架            PySimpleGUI    PySide6+qfluentwidgets
 水印检测              无             完整支持
 VRAM管理              无             完整系统
 并发处理              单任务         1-8任务
+视频增强             无             SR+waifu2x+RIFE
 多语言              无             6种语言
 主题切换              无             亮/暗色
 帮助系统              无             完整帮助按钮
+AI功能导航页          无             3个独立页
+GPU实时监控           无             是
+显存主动调度           无             是
+配置方案管理           无             是
+ncnn后端              无             3个(SR/RIFE/waifu2x)
 发布包大小           3.7GB          0.3MB(源码)
 ```
 
@@ -168,7 +174,45 @@ VRAM管理              无             完整系统
 | **Pylance分析** | Python 语法检查、导入分析 |
 | **笔记持久化** | memory 系统记录开发心得 |
 
-## 七、相关文档索引
+## 七、Post-v1.4.0 新增功能（2026-06-20 ~ 2026-06-24）
+
+### 7.1 视频增强系统
+- **超分辨率（Real-ESRGAN）**：支持 Python CUDA 和 ncnn-Vulkan 双后端，4 种模型可选
+- **waifu2x 动漫超分**：ncnn-Vulkan 后端，cunet/upconv_anime 模型架构，1-10x 缩放
+- **帧插值（RIFE）**：Python CUDA 和 ncnn-Vulkan 双后端，2x/3x/4x/8x 插值倍数
+- **增强管道**：超分→插帧 或 插帧→超分，任意组合串联
+
+### 7.2 智能显存与调度
+- **VRAM 主动调度**：实时监控显存压力，自适应调整批次大小，动态 GC 释放
+- **多任务分阶段调度**：字幕/SR/FI 模型分阶段加载，避免显存叠加 OOM
+- **锁定专用显存**：防止 Windows WDDM 溢出到共享内存
+- **GPU 实时监控弹窗**：nvidia-smi 轮询，进程按 GPU 负载排序
+
+### 7.3 性能优化
+- **STTN 字幕处理管线优化**：速度提升 30~50%，显存降低 50%
+- **多循环扫除管线优化**：3x→2x 推理次数，导入机制优化
+- **GPU 调度改为实际负载驱动**：同时监控显存+核心利用率
+- **批次流水线化**：Phase2 后台运行时下一批 Phase1 立即启动
+
+### 7.4 新增页面与组件
+- **AI 视频生成页面** (`ai_video_generation_page.py`)
+- **AI 音频处理页面** (`audio_ai_page.py`)
+- **视频编辑器页面** (`video_editor_page.py`)
+- **统一打赏弹窗** (`donation_dialog.py`)
+- **启动弹窗** (`startup_dialog.py`)
+
+### 7.5 新增工具模块
+- **三个 ncnn 后端**：sr_ncnn_backend, rife_ncnn_backend, waifu2x_ncnn_backend
+- **资源管理器** (`resource_manager.py`)：统一模型下载管理
+- **配置方案管理** (`config_profile.py`)：多配置保存/切换
+- **水印追踪** (`watermark_tracker.py`)：跨帧位置预测
+- **模型兼容层** (`model_compat.py`)：版本兼容处理
+- **主题监听** (`theme_listener.py`)：系统主题实时切换
+- **视频合并** (`merge_video.py`)：多片段合并
+
+---
+
+## 八、相关文档索引
 
 | 文档 | 说明 |
 |------|------|
@@ -183,4 +227,4 @@ VRAM管理              无             完整系统
 
 ---
 
-*本文档最后更新: 2026-06-19*
+*本文档最后更新: 2026-06-24*
