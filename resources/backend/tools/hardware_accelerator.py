@@ -233,73 +233,72 @@ class HardwareAccelerator:
     #  VRAM 压力监控与自适应调度
     # ═══════════════════════════════════════════════════════════
 
-    def get_vram_used_gb(self) -> float:
-        """获取当前专用显存使用量（GB），通过 nvidia-smi 查询"""
+    # ── GPU 状态缓存（避免高频 nvidia-smi 调用）──
+    _gpu_cache = {"ts": 0, "vram_pct": 0, "gpu_util": 0}
+    _CACHE_TTL = 2.0  # 缓存有效期 (秒)
+
+    def _gpu_status(self) -> tuple:
+        """查询 GPU 显存占用(%)和核心利用率(%)，2秒缓存"""
+        import time
+        now = time.time()
+        if now - self._gpu_cache["ts"] < self._CACHE_TTL:
+            return self._gpu_cache["vram_pct"], self._gpu_cache["gpu_util"]
+
+        vram_pct, gpu_util = 0.0, 0.0
         try:
-            if not self.__cuda:
-                return 0.0
-            import subprocess
-            result = subprocess.run(
-                ["nvidia-smi", "--query-gpu=memory.used", "--format=csv,noheader,nounits"],
-                capture_output=True, text=True, timeout=3)
-            if result.returncode == 0:
-                mb = float(result.stdout.strip().splitlines()[0].strip())
-                return mb / 1024.0
+            if self.__cuda:
+                import subprocess
+                result = subprocess.run(
+                    ["nvidia-smi", "--query-gpu=memory.used,memory.total,utilization.gpu",
+                     "--format=csv,noheader,nounits"],
+                    capture_output=True, text=True, timeout=3)
+                if result.returncode == 0:
+                    parts = result.stdout.strip().split(",")
+                    if len(parts) >= 3:
+                        used_mb = float(parts[0].strip())
+                        total_mb = float(parts[1].strip())
+                        gpu_util = float(parts[2].strip())
+                        vram_pct = used_mb / total_mb * 100.0 if total_mb > 0 else 0
         except Exception:
             pass
-        # 回退：torch 报告（含共享内存，不够精确）
-        try:
-            import torch
-            return torch.cuda.memory_allocated(0) / (1024**3)
-        except Exception:
-            return 0.0
+        self._gpu_cache = {"ts": now, "vram_pct": vram_pct, "gpu_util": gpu_util}
+        return vram_pct, gpu_util
 
     def get_vram_pressure(self) -> float:
-        """获取专用显存压力 (0-100%)。
-
-        返回值分级:
-          0-70%  : 安全 — 全力运行
-          70-85% : 警戒 — 可继续但需监控
-          85-95% : 危险 — 需主动释放/降批
-          95%+   : 紧急 — 强制 GC + 最小批次
-        """
-        dedicated = self.get_dedicated_vram_gb()
-        if dedicated <= 0:
-            return 0.0
-        used = self.get_vram_used_gb()
-        return min(100.0, used / dedicated * 100.0)
+        """综合压力指数 (0-100): max(显存占用%, GPU利用率%)"""
+        vram_pct, gpu_util = self._gpu_status()
+        return max(vram_pct, gpu_util)
 
     def adaptive_batch_size(self, requested: int,
                             pressure_threshold: float = 85.0,
                             min_batch: int = 8,
                             reduction_factor: float = 0.5) -> int:
-        """根据当前显存压力动态调整批次大小。
+        """根据 GPU 实际负载动态调整批次大小。
 
-        pressure < 85%: 返回 requested (全力)
-        pressure 85-95%: 返回 requested × 0.5 (降半)
-        pressure > 95%: 返回 max(min_batch, requested × 0.25) (紧急)
+        显存<85% 且 GPU利用率<85%: 返回 requested (全力)
+        显存85-95% 或 GPU>85%: 返回 requested × 0.5 (减半)
+        显存>95% 或 GPU>95%: 返回 max(min_batch, requested × 0.25) + GC
         """
-        pressure = self.get_vram_pressure()
+        vram_pct, gpu_util = self._gpu_status()
+        pressure = max(vram_pct, gpu_util)
         if pressure < pressure_threshold:
             return requested
         if pressure < 95.0:
             new_size = max(min_batch, int(requested * reduction_factor))
-            print(f"[VRAM调度] 压力 {pressure:.0f}% → 批次 {requested} → {new_size} (降半)")
+            print(f"[GPU调度] 显存{vram_pct:.0f}% GPU{gpu_util:.0f}% → 批次{requested}→{new_size}")
             return new_size
-        # 紧急：强制 GC + 最小批次
         try:
-            import torch
-            torch.cuda.empty_cache()
+            import torch; torch.cuda.empty_cache()
         except Exception:
             pass
         new_size = max(min_batch, int(requested * 0.25))
-        print(f"[VRAM调度] 压力 {pressure:.0f}%(紧急) → 批次 {requested} → {new_size} + GC")
+        print(f"[GPU调度] 显存{vram_pct:.0f}% GPU{gpu_util:.0f}% 紧急! → 批次{requested}→{new_size}+GC")
         return new_size
 
     def vram_safe_gc(self, pressure_threshold: float = 80.0):
-        """当显存压力超过阈值时主动清理缓存，避免溢出到共享内存"""
-        pressure = self.get_vram_pressure()
-        if pressure >= pressure_threshold:
+        """GPU 负载超阈值时主动清理缓存"""
+        vram_pct, gpu_util = self._gpu_status()
+        if max(vram_pct, gpu_util) >= pressure_threshold:
             try:
                 import torch
                 torch.cuda.empty_cache()
