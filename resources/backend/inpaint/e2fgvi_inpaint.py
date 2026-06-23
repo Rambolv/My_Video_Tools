@@ -25,12 +25,44 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-# 将 E2FGVI 目录加入 Python 路径（用于 from model.e2fgvi import ...）
+# 使用 importlib 直接加载 E2FGVI 模型模块（避免子进程 sys.path 问题）
 _E2FGVI_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'E2FGVI')
-if _E2FGVI_DIR not in sys.path:
-    sys.path.insert(0, _E2FGVI_DIR)
 
-from model.e2fgvi import InpaintGenerator
+def _get_inpaint_generator():
+    """惰性加载 InpaintGenerator，仅在首次用到时加载"""
+    import importlib.util
+    _model_init = os.path.join(_E2FGVI_DIR, 'model', '__init__.py')
+    _e2fgvi_py = os.path.join(_E2FGVI_DIR, 'model', 'e2fgvi.py')
+
+    # 确保 E2FGVI 目录在 sys.path 中
+    if _E2FGVI_DIR not in sys.path:
+        sys.path.insert(0, _E2FGVI_DIR)
+
+    # 使用 importlib 加载 model 包（无 __init__.py 的命名空间包）
+    if 'model' not in sys.modules:
+        if os.path.exists(_model_init):
+            _s = importlib.util.spec_from_file_location('model', _model_init,
+                submodule_search_locations=[os.path.join(_E2FGVI_DIR, 'model')])
+        else:
+            # 命名空间包
+            from importlib.machinery import PathFinder
+            _s = PathFinder.find_spec('model', [os.path.join(_E2FGVI_DIR, 'model')])
+        if _s:
+            _m = importlib.util.module_from_spec(_s)
+            sys.modules['model'] = _m
+            _s.loader.exec_module(_m)
+
+    # 加载 model.e2fgvi
+    if 'model.e2fgvi' not in sys.modules:
+        _s2 = importlib.util.spec_from_file_location('model.e2fgvi', _e2fgvi_py)
+        _m2 = importlib.util.module_from_spec(_s2)
+        sys.modules['model.e2fgvi'] = _m2
+        _s2.loader.exec_module(_m2)
+
+    return sys.modules['model.e2fgvi'].InpaintGenerator
+
+
+InpaintGenerator = _get_inpaint_generator()
 
 
 class E2FGVIInpaint:

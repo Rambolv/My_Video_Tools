@@ -15,9 +15,9 @@ BACKEND_WAIFU2X = "waifu2x"    # waifu2x-ncnn-vulkan（独立）
 # key=模型名, value=(display_name, [兼容后端列表])
 RIFE_MODEL_COMPAT: Dict[str, Tuple[str, List[str]]] = {
     "rife-v3.1":  ("RIFE v3.1",  [BACKEND_PYTHON, BACKEND_NCNN]),
-    "rife-v3.0":  ("RIFE v3.0",  [BACKEND_PYTHON]),  # ❌ 不支持 ncnn! 缺少 flownet.param
-    "rife-v2.4":  ("RIFE v2.4",  [BACKEND_PYTHON, BACKEND_NCNN]),
-    "rife-anime": ("RIFE Anime", [BACKEND_PYTHON, BACKEND_NCNN]),
+    "rife-v3.0":  ("RIFE v3.0",  [BACKEND_PYTHON]),  # ncnn 模型文件不完整
+    "rife-v2.4":  ("RIFE v2.4",  [BACKEND_PYTHON]),  # ncnn 模型文件缺失
+    "rife-anime": ("RIFE Anime", [BACKEND_PYTHON]),  # ncnn 模型文件缺失
 }
 
 # ── SR 模型兼容性定义 ──

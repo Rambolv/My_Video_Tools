@@ -14,7 +14,6 @@ import shutil
 import time
 import tempfile
 import traceback
-import threading
 import numpy as np
 from pathlib import Path
 from functools import cached_property
@@ -278,8 +277,8 @@ class VideoSuperResolution:
             stderr=subprocess.DEVNULL,
         )
 
-        # ── 队列（缩小队列减轻并发内存压力）──
-        Q_SIZE = max(4, min(16, total_frames // 20))  # 自适应队列深度
+        # ── 队列（限制容量避免内存爆炸）──
+        Q_SIZE = max(8, min(32, total_frames // 10))  # 自适应队列深度
         frame_queue = queue_module.Queue(maxsize=Q_SIZE)
         result_queue = queue_module.Queue(maxsize=Q_SIZE)
         stop_sentinel = object()
@@ -296,8 +295,7 @@ class VideoSuperResolution:
                     if not raw or len(raw) < frame_size_in:
                         break
                     frame = np.frombuffer(raw, dtype=np.uint8).reshape((height, width, 3)).copy()
-                    # 队列满时无限等待（maxsize 已控制内存上限，不超时防止崩溃）
-                    frame_queue.put((idx, frame))
+                    frame_queue.put((idx, frame), timeout=30)
                     idx += 1
             except Exception as e:
                 error_holder["error"] = e
@@ -319,9 +317,6 @@ class VideoSuperResolution:
                         break
                     _, enhanced = item
                     encoder.stdin.write(enhanced.tobytes())
-            except queue_module.Empty:
-                # 主线程可能卡在主循环之外, 超时退出避免死等
-                pass
             except Exception as e:
                 error_holder["error"] = e
             finally:
@@ -339,18 +334,13 @@ class VideoSuperResolution:
         processed = 0
         try:
             while True:
-                # 定期检查错误持有者（writer/reader 异常）
-                if error_holder["error"]:
-                    raise error_holder["error"]
-
                 item = frame_queue.get(timeout=60)
                 idx, frame = item
                 if frame is stop_sentinel:
                     break
 
                 enhanced = self.enhance_frame(frame)
-                # 带超时的 put，避免 writer 挂掉后死锁
-                result_queue.put((idx, enhanced), timeout=60)
+                result_queue.put((idx, enhanced))
                 processed += 1
 
                 if processed % 10 == 0 or processed == 1:
@@ -520,85 +510,33 @@ def _auto_setup_rife():
 
 _RIFE_SETUP_DONE = False
 _RIFE_SETUP_OK = False
-_RIFE_LOCK = threading.Lock()
-_RIFE_EVENT = threading.Event()
-_RIFE_DIAG_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'rife_diag.log')
 
 
 def _ensure_rife():
-    """确保 RIFE 可用，导入内置模块（线程安全）"""
+    """确保 RIFE 可用，导入内置模块"""
     global _RIFE_SETUP_DONE, _RIFE_SETUP_OK
-
-    # 快速路径：已成功完成
-    if _RIFE_SETUP_OK:
-        return True
-
-    with _RIFE_LOCK:
-        if _RIFE_SETUP_DONE:
-            # 另一个线程正在或已完成导入
-            _other_working = True
-        else:
-            _RIFE_SETUP_DONE = True  # 标记：本线程负责导入
-            _other_working = False
-
-    if _other_working:
-        # 等其他线程完成
-        _RIFE_EVENT.wait(timeout=120)
+    if _RIFE_SETUP_DONE:
         return _RIFE_SETUP_OK
+    _RIFE_SETUP_DONE = True
 
-    # ── 本线程执行导入 ──
-    import importlib.util
-    import importlib.machinery
-
+    # 添加 RIFE 模块到 sys.path
     _rife_root = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'rife')
+    if _rife_root not in sys.path:
+        sys.path.insert(0, os.path.dirname(_rife_root))  # 使 from rife.RIFE_HDv3 import Model 可用
+        sys.path.insert(0, _rife_root)                    # 使 from RIFE_HDv3 import Model 可用
 
     try:
-        _rife_init = os.path.join(_rife_root, '__init__.py')
-        if not os.path.exists(_rife_init):
-            raise FileNotFoundError(f"RIFE 模块不存在: {_rife_init}")
-
-        _rife_spec = importlib.util.spec_from_file_location('rife', _rife_init,
-            submodule_search_locations=[_rife_root])
-        _rife_mod = importlib.util.module_from_spec(_rife_spec)
-        sys.modules['rife'] = _rife_mod
-        _rife_spec.loader.exec_module(_rife_mod)
-
-        _rife_model_init = os.path.join(_rife_root, 'model', '__init__.py')
-        if os.path.exists(_rife_model_init):
-            _rm_spec = importlib.util.spec_from_file_location('rife.model', _rife_model_init,
-                submodule_search_locations=[os.path.join(_rife_root, 'model')])
-            _rm_mod = importlib.util.module_from_spec(_rm_spec)
-            sys.modules['rife.model'] = _rm_mod
-            _rm_spec.loader.exec_module(_rm_mod)
-
-        _rife_hd_path = os.path.join(_rife_root, 'RIFE_HDv3.py')
-        _rh_spec = importlib.util.spec_from_file_location('rife.RIFE_HDv3', _rife_hd_path)
-        _rh_mod = importlib.util.module_from_spec(_rh_spec)
-        sys.modules['rife.RIFE_HDv3'] = _rh_mod
-        _rh_spec.loader.exec_module(_rh_mod)
-
+        from rife.RIFE_HDv3 import Model as _RifeModel
         global _RifeModelClass
-        _RifeModelClass = _rh_mod.Model
+        _RifeModelClass = _RifeModel
+        # 自动下载模型
         _auto_setup_rife()
         _RIFE_SETUP_OK = True
         return True
-    except Exception as e:
-        _err_msg = f"[RIFE] 导入失败: {e}"
-        print(_err_msg)
-        import traceback as _tb
-        _tb.print_exc()
-        print(f"[RIFE] Python: {sys.executable}")
-        print(f"[RIFE] rife_root: {_rife_root}")
-        try:
-            with open(_RIFE_DIAG_PATH, 'a', encoding='utf-8') as _f:
-                _f.write(f"[{time.strftime('%H:%M:%S')}] PID={os.getpid()} {_err_msg}\n")
-                _f.write(f"[{time.strftime('%H:%M:%S')}] PID={os.getpid()} rife_root={_rife_root}\n")
-        except Exception:
-            pass
+    except ImportError as e:
+        print(f"[RIFE] 内置模块导入失败: {e}")
         _RIFE_SETUP_OK = False
         return False
-    finally:
-        _RIFE_EVENT.set()
 
 
 _RifeModelClass = None
@@ -666,22 +604,8 @@ class VideoFrameInterpolation:
             frame1 = cv2.copyMakeBorder(frame1, 0, pad_h, 0, pad_w, cv2.BORDER_REFLECT)
             frame2 = cv2.copyMakeBorder(frame2, 0, pad_h, 0, pad_w, cv2.BORDER_REFLECT)
 
-        try:
-            i1 = torch.from_numpy(frame1.transpose(2, 0, 1)).float().unsqueeze(0).to(self._device) / 255.0
-            i2 = torch.from_numpy(frame2.transpose(2, 0, 1)).float().unsqueeze(0).to(self._device) / 255.0
-        except (MemoryError, Exception) as mem_err:
-            if isinstance(mem_err, MemoryError) or 'MemoryError' in type(mem_err).__name__:
-                print(f"[FI] 内存不足({mem_err}), 尝试清理后重试...")
-                import gc
-                gc.collect()
-                try:
-                    torch.cuda.empty_cache()
-                except Exception:
-                    pass
-                i1 = torch.from_numpy(frame1.transpose(2, 0, 1)).float().unsqueeze(0).to(self._device) / 255.0
-                i2 = torch.from_numpy(frame2.transpose(2, 0, 1)).float().unsqueeze(0).to(self._device) / 255.0
-            else:
-                raise
+        i1 = torch.from_numpy(frame1.transpose(2, 0, 1)).float().unsqueeze(0).to(self._device) / 255.0
+        i2 = torch.from_numpy(frame2.transpose(2, 0, 1)).float().unsqueeze(0).to(self._device) / 255.0
 
         results = []
         with torch.no_grad():
@@ -791,8 +715,8 @@ class VideoFrameInterpolation:
             stderr=subprocess.DEVNULL,
         )
 
-        # ── 队列（缩小队列减轻并发内存压力）──
-        Q_SIZE = max(4, min(16, total_frames * self._multiplier // 20))
+        # ── 队列 ──
+        Q_SIZE = max(8, min(32, total_frames * self._multiplier // 10))
         frame_queue = queue_module.Queue(maxsize=Q_SIZE)
         result_queue = queue_module.Queue(maxsize=Q_SIZE)
         stop_sentinel = object()
@@ -809,7 +733,7 @@ class VideoFrameInterpolation:
                     if not raw or len(raw) < frame_size:
                         break
                     frame = np.frombuffer(raw, dtype=np.uint8).reshape((h, w, 3)).copy()
-                    frame_queue.put((idx, frame))
+                    frame_queue.put((idx, frame), timeout=30)
                     idx += 1
             except Exception as e:
                 error_holder["error"] = e
@@ -894,31 +818,40 @@ class VideoFrameInterpolation:
             final_temp_path = final_temp.name
             final_temp.close()
 
+            def _build_atempo(t):
+                if t >= 0.5:
+                    return f"atempo={t}"
+                filters = []
+                while t < 0.5:
+                    filters.append("atempo=0.5")
+                    t *= 2
+                if abs(t - 1.0) > 0.001:
+                    filters.append(f"atempo={t}")
+                return ",".join(filters)
+
+            tempo = 1.0 / self._multiplier
+            tempo_filter = _build_atempo(tempo)
             _audio_src = audio_source if audio_source else input_path
-            _audio_src = _audio_src if os.path.exists(_audio_src) else None
-            if _audio_src:
-                try:
-                    merge_cmd = [
-                        ff, "-y",
-                        "-i", temp_path,
-                        "-i", get_readable_path(_audio_src),
-                        "-vcodec", "copy",
-                        "-acodec", "copy",
-                        "-map", "0:v:0", "-map", "1:a:0?",
-                        "-loglevel", "error",
-                        final_temp_path,
-                    ]
-                    subprocess.check_output(merge_cmd, stdin=open(os.devnull), shell=False)
-                except Exception:
-                    no_audio_cmd = [
-                        ff, "-y", "-i", temp_path,
-                        "-vcodec", "copy",
-                        "-loglevel", "error", final_temp_path,
-                    ]
-                    subprocess.check_output(no_audio_cmd, stdin=open(os.devnull), shell=False)
-                    _log("  (源视频无音轨，输出无音频)")
-            else:
-                shutil.copy2(temp_path, final_temp_path)
+            merge_cmd = [
+                ff, "-y", "-i", temp_path, "-i", get_readable_path(_audio_src),
+                "-vcodec", "copy",
+                "-map", "0:v:0",
+                "-filter_complex", f"[1:a]{tempo_filter}[a]",
+                "-map", "[a]",
+                "-loglevel", "error",
+                final_temp_path,
+            ]
+            try:
+                subprocess.check_output(merge_cmd, stdin=open(os.devnull),
+                                        stderr=subprocess.DEVNULL, shell=False)
+            except Exception:
+                no_audio_cmd = [
+                    ff, "-y", "-i", temp_path,
+                    "-vcodec", "copy",
+                    "-loglevel", "error", final_temp_path,
+                ]
+                subprocess.check_output(no_audio_cmd, stdin=open(os.devnull), shell=False)
+                _log("  (源视频无音轨，输出无音频)")
 
             if os.path.exists(final_temp_path):
                 shutil.move(final_temp_path, output_path)
@@ -1009,7 +942,7 @@ def enhance_video_pipeline(
         sr_path = output_path + ".sr_tmp.mp4"
         temp_files.append(sr_path)
         _log("=" * 50)
-        _log(f"步骤 {'1/2' if sr_first else '2/2'}: 超分辨率处理…")
+        _log(f"步骤 {'1/2' if (enable_sr and enable_fi) else '1/1'}: 超分辨率处理…")
         model_name = config.srModelName.value
         if model_name.startswith("waifu2x-"):
             _log("  算法: waifu2x-ncnn-vulkan (Vulkan)")
@@ -1066,7 +999,7 @@ def enhance_video_pipeline(
         fi_path = output_path + ".fi_tmp.mp4"
         temp_files.append(fi_path)
         _log("=" * 50)
-        _log(f"步骤 {'2/2' if sr_first else '1/2'}: 帧插值处理…")
+        _log(f"步骤 {'2/2' if (enable_sr and enable_fi) else '1/1'}: 帧插值处理…")
         cap_tmp2 = cv2.VideoCapture(get_readable_path(current_input))
         fps2 = cap_tmp2.get(cv2.CAP_PROP_FPS)
         cap_tmp2.release()
@@ -1109,14 +1042,6 @@ def enhance_video_pipeline(
     try:
         if sr_first:
             if enable_sr: _run_sr_step()
-            # SR→FI 切换: 强制清理内存
-            import gc
-            gc.collect()
-            try:
-                import torch
-                torch.cuda.empty_cache()
-            except Exception:
-                pass
             if enable_fi: _run_fi_step()
         else:
             if enable_fi: _run_fi_step()

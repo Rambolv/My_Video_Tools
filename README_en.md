@@ -51,6 +51,9 @@ It also integrates and enhances all features from the original author's VSE pre-
 - **ProPainter / E2FGVI Engines**: Added ProPainter (high quality/high VRAM) and E2FGVI (CVPR 2022, 48GB+ VRAM) inpainting algorithms
 - **SAM2 Detection Models**: Added SAM2-Tiny/Small/Base/Large segmentation models alongside PaddleOCR
 - **PP-OCRv5 Support**: Upgraded to PP-OCRv5 Server/Mobile for latest OCR accuracy
+- **Video Super-Resolution (Real-ESRGAN)**: Built-in Real-ESRGAN, supports Python CUDA (working) and ncnn-Vulkan (⚠️ models blocked in China, auto-fallback to Python) backends
+- **waifu2x Anime Upscale**: Integrated waifu2x-ncnn-vulkan, supports cunet / upconv_anime model architectures
+- **Frame Interpolation (RIFE)**: Built-in RIFE optical flow interpolation, supports Python CUDA (⚠️ experimental, needs validation) and ncnn-Vulkan (⚠️ reliable but slow pair mode) backends
 
 #### 📝 Subtitle Extraction System
 - **Full Pipeline Subtitle Extraction**: Automated PaddleOCR-based extraction
@@ -102,6 +105,17 @@ It also integrates and enhances all features from the original author's VSE pre-
 | **Watermark Detection** | Template matching, color propagation, power sweep, region inpaint |
 | **Concurrent Processing** | 1-8 parallel tasks with auto VRAM red-flag warning |
 | **VRAM Monitoring** | Passive real-time GPU memory collection with smart recommendations |
+
+### 🎨 Video Enhancement (Super-Resolution & Frame Interpolation)
+
+| Feature | Description | Status |
+|---------|-------------|--------|
+| **Real-ESRGAN SR** | Python CUDA (✅ tested 75fr 640→2560 in 10s) / ncnn-Vulkan (model restricted) | ✅ / ⚠️ |
+| **waifu2x Anime SR** | waifu2x-ncnn-vulkan, cunet / upconv_anime models | ✅ |
+| **RIFE FI (Python)** | Python CUDA (✅ CLI 75fr 2x in 2.5s, ✅ subprocess import fixed via importlib) | ✅ |
+| **RIFE FI (ncnn)** | ncnn-Vulkan pair mode stable but slow (exe per pair) | ⚠️ |
+| **Audio Preservation** | Original audio preserved, no duration change | ✅ |
+| **Combined Pipeline** | SR + FI chained (✅ tested 75fr 4xSR+2xFI in 183s) | ✅ |
 
 ### 📝 Subtitle Extraction
 

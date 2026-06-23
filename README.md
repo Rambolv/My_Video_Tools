@@ -50,6 +50,9 @@
 - **ProPainter / E2FGVI 修复引擎**：新增 ProPainter（高效果/高显存）和 E2FGVI（CVPR 2022，48GB+ VRAM）两种高质量修复算法
 - **SAM2 检测模型**：新增 SAM2-Tiny/Small/Base/Large 四档分割模型，配合 PaddleOCR 使用
 - **PP-OCRv5 检测模型**：升级支持 PP-OCRv5 Server/Mobile 最新 OCR 检测
+- **视频超分辨率（Real-ESRGAN）**：内置 Real-ESRGAN 超分算法，支持 Python CUDA（可用）和 ncnn-Vulkan（⚠️ 国内无法下载模型，自动回退 Python）两种后端
+- **waifu2x 动漫超分**：集成 waifu2x-ncnn-vulkan，支持 cunet / upconv_anime 两种模型架构
+- **帧插值（RIFE）**：内置 RIFE 光流插帧算法，支持 Python CUDA（⚠️ 实验性，需验证）和 ncnn-Vulkan（⚠️ 可靠但速度较慢）两种后端
 
 #### 📝 字幕提取系统
 - **全流程字幕提取**：基于 PaddleOCR 的自动化管道，支持一键提取
@@ -101,6 +104,17 @@
 | **水印检测** | 模板匹配、颜色传播、强力清扫、区域重绘 |
 | **并发处理** | 1-8 任务并行，自动 VRAM 标红预警 |
 | **VRAM 监控** | 被动采集真实显存数据，智能推荐 |
+
+### 🎨 视频增强（超分辨率 & 插帧）
+
+| 功能 | 说明 | 状态 |
+|------|------|------|
+| **超分辨率 Real-ESRGAN** | Python CUDA（✅ 已验证 75帧 640→2560 耗时10s） / ncnn-Vulkan（模型受限） | ✅ / ⚠️ |
+| **waifu2x 动漫超分** | waifu2x-ncnn-vulkan，cunet / upconv_anime 模型 | ✅ |
+| **帧插值 RIFE（Python）** | Python CUDA（✅ CLI 75帧 2x 2.5s，✅ 子进程导入已修复 importlib） | ✅ |
+| **帧插值 RIFE（ncnn）** | ncnn-Vulkan 配对模式稳定但较慢（每对帧启动一次 exe） | ⚠️ |
+| **音频保留** | 插帧后自动保留原始音频，不改变时长 | ✅ |
+| **组合管道** | SR + FI 串联（✅ 已验证 75帧 4x超分+2x插帧 共计183s） | ✅ |
 
 ### 📝 字幕提取
 

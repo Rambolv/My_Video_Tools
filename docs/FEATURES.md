@@ -218,3 +218,114 @@
 多任务显存 = 首任务显存 + 次模型×0.5 + (并发数-1) × 首任务显存 × 0.40
 超出判定 = total > GPU显存 × 0.90 (留 10% 余量)
 ```
+
+---
+
+## 7. 视频增强（超分辨率 & 帧插值）
+
+### 7.1 概述
+
+本模块为 VSR 魔改版新增的视频质量增强功能，包含**超分辨率（Super-Resolution）** 和 **帧插值（Frame Interpolation）** 两个子模块，可分别使用或组合使用（先超分后插帧）。
+
+### 7.2 超分辨率（Real-ESRGAN）
+
+| 项目 | 说明 |
+|------|------|
+| **算法** | Real-ESRGAN（BSRGAN 改进版，BSD 3-Clause 许可） |
+| **Python CUDA 后端** | 通过 pip 安装 `realesrgan` 包，模型自动下载至 `resources/weights/` |
+| **ncnn-Vulkan 后端** | 通过 `realesrgan-ncnn-vulkan.exe` 调用，⚠️ 模型文件托管于 GitHub LFS，国内网络受限，自动回退 Python |
+
+**状态指示**：
+- ✅ **Python CUDA**: 可用（✅ 2026-06-23 实测 75帧 640→2560 耗时 10s）
+- ⚠️ **ncnn-Vulkan**: 模型文件（.bin/.param）托管在 GitHub LFS，国内下载失败时自动回退 Python
+
+**可选模型**：
+```
+realesr-general-x4v3         # ⚠️ 默认，可能需下载
+RealESRGAN_x4plus            # ✅ 通用 4x 超分
+RealESRGAN_x4plus_anime_6B   # 动漫优化版
+RealESRGAN_x2plus            # 2x 超分
+```
+
+### 7.3 waifu2x 动漫超分
+
+| 项目 | 说明 |
+|------|------|
+| **引擎** | waifu2x-ncnn-vulkan（MIT 许可，v20250915） |
+| **后端** | ncnn-Vulkan（仅此一种） |
+| **模型架构** | `cunet`（通用动漫）/ `upconv_anime`（轻量动漫） |
+| **降噪级别** | 0-3 级 |
+| **缩放比例** | 1x-10x（自定义步长 0.1） |
+| **多线程** | 可配置，默认 `1:2:2`（处理:缩放:去噪） |
+
+**状态**：✅ 可用
+
+### 7.4 帧插值（RIFE）
+
+| 项目 | 说明 |
+|------|------|
+| **算法** | RIFE（Real-Time Intermediate Flow Estimation）v3.x |
+| **模型来源** | Flowframes RIFE39 模型（flownet.pkl，27MB） |
+| **插值倍数** | 2x / 3x / 4x / 8x |
+
+#### Python CUDA 后端
+
+| 方面 | 说明 |
+|------|------|
+| **原理** | PyTorch 加载 flownet.pkl，光流法插值中间帧 |
+| **状态** | ✅ **已修复（2026-06-23）** — 改用 `importlib` 直接加载模块，绕过 spawn 子进程包导入问题 |
+| **依赖** | PyTorch（CUDA），嵌入版 Python 已预装 |
+| **模型路径** | `resources/models/rife/flownet.pkl` |
+
+**历史问题**：
+- ⚠️ `No module named 'model.RIFE_HDv3'` → ✅ 已修复（改为 `from .model.RIFE_HDv3`）
+  - 根因：QPT 环境下 sys.path 不含子包路径，绝对导入失败
+- ⚠️ **子进程导入偶发失败** → ✅ 已修复（改用 `importlib.util.spec_from_file_location` 直接加载，不依赖 sys.path）
+- ✅ **子进程测试通过**：`multiprocessing.spawn` 子进程中 `_ensure_rife()=True`, `FI available=True`
+
+#### ncnn-Vulkan 后端
+
+| 方面 | 说明 |
+|------|------|
+| **引擎** | `rife-ncnn-vulkan.exe`（来自 Flowframes 旧版，4.1MB） |
+| **工作模式** | 配对模式（`-0 f0 -1 f1 -o out`），逐对处理 |
+| **状态** | ⚠️ **配对模式可用但慢** — 每对帧启动一次 exe，N 帧需要 N-1 次启动 |
+
+**已知问题**：
+- ❌ **目录模式已废弃**：旧版 exe 处理 rife-v3 模型时输出混乱（4 帧输入 → 8 帧输出，多半损坏）
+- ⚠️ **配对模式静默失败**：特定 PNG 解码失败时返回 `STATUS_ACCESS_VIOLATION`，但仍写入输出文件
+- ⚠️ **模型兼容性**：旧版 exe 不支持 rife-v4.6 的 `Eltwise` 层，需使用 rife-v3.1 模型
+
+### 7.5 增强管道工作流
+
+```
+输入视频 → [可选] 超分辨率（Real-ESRGAN / waifu2x）
+          → [可选] 帧插值（RIFE）
+          → 输出视频（保留原始音频）
+```
+
+管道由 `VideoSuperResolution` 和 `VideoFrameInterpolation` 两个类串联：
+1. 超分阶段：提取所有帧 → 逐帧超分 → 编码为临时视频
+2. 插帧阶段：提取超分后帧 → RIFE 插值 → 编码为最终视频 + 原始音频
+
+**实测性能 (2026-06-23, RTX 4090)**：
+| 操作 | 输入 | 输出 | 耗时 |
+|------|------|------|------|
+| Real-ESRGAN 4x SR | 75帧 640×360 | 75帧 2560×1440 | 10.1s |
+| RIFE 2x FI | 75帧 15fps | 149帧 30fps | 2.5s |
+| 组合管道 (SR→FI) | 75帧 640×360 15fps | 149帧 2560×1440 30fps | 182.7s (含模型下载)
+
+### 7.6 配置参数（config.json）
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `srModelName` | `RealESRGAN_x4plus` | 超分模型名称 |
+| `srBackend` | `python` | 超分后端：`python` / `ncnn` |
+| `srScale` | 4 | 超分缩放倍数 |
+| `waifu2xModelArch` | `cunet` | waifu2x 模型架构 |
+| `waifu2xDenoise` | 0 | waifu2x 降噪级别 |
+| `waifu2xScale` | 2 | waifu2x 缩放倍数 |
+| `fiModelName` | `rife-v3.1` | 插帧模型名称 |
+| `fiBackend` | `python` | 插帧后端：`python` / `ncnn` |
+| `fiMultiplier` | 2 | 插帧倍数（2/3/4/8） |
+| `fiNcnnThreads` | `1:2:2` | ncnn 线程配置（处理:缩放:去噪） |

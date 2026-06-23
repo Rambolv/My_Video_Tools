@@ -50,7 +50,6 @@ class HardwareAccelerator:
         self.__device = None
 
     def initialize(self):
-        _ensure_inference_optimized()
         self.check_directml_available()
         self.check_cuda_available()
         self.check_mps_available()
@@ -199,6 +198,9 @@ class HardwareAccelerator:
 
             import torch
             import os
+
+            # ── 全局推理优化：启用 cuDNN 自动算法选择 ──
+            _ensure_inference_optimized()
 
             dedicated = self.get_dedicated_vram_gb()
             total_cuda = self.get_gpu_vram_gb()

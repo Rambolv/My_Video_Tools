@@ -362,7 +362,8 @@ class HomeInterface(QWidget):
                 "• <b>RealESRGAN_x4plus</b>：通用图像 (4x)<br>"
                 "• <b>RealESRGAN_x2plus</b>：通用图像 (2x)<br>"
                 "• <b>realesr-general-x4v3</b>：通用轻量 (4x)<br>"
-                "后端可选 🐍 Python CUDA 或 ⚡ Vulkan<br><br>"
+                "后端可选 🐍 Python CUDA 或 ⚡ Vulkan（需 ncnn 模型）<br>"
+                "• ⚡ Vulkan 当前不可用时会自动回退到 Python<br>"
                 "<b>waifu2x</b> — AI 图像放大 (Vulkan)<br>"
                 "• <b>waifu2x-cunet</b>：最佳质量，含去噪<br>"
                 "• <b>waifu2x-upconv_anime</b>：轻量动漫<br>"
@@ -381,8 +382,19 @@ class HomeInterface(QWidget):
                 "• 处理时间 ×倍率正比增加<br>"
                 "• 运动模糊或快速运镜可能产生伪影<br>"
                 "• 建议 2x~4x 日常使用，8x 仅适合慢速镜头<br><br>"
+                "<b>🐍 Python CUDA 后端</b><br>"
+                "• 模型一次性加载到 GPU，持续推理<br>"
+                "• <b>速度快</b>（75帧 2x 约 2.5s）<br>"
+                "• 占用 GPU 显存（约 1.5GB）<br>"
+                "• 适合需要高吞吐的场景<br><br>"
+                "<b>⚡ Vulkan (ncnn) 后端</b><br>"
+                "• 每对帧启动一次 exe，模型从磁盘重新加载<br>"
+                "• <b>速度慢</b>（主要耗时在 exe 启动 + 模型加载 + PNG 读写）<br>"
+                "• <b>几乎不吃 GPU</b>（推理本身极快，但启动开销大）<br>"
+                "• 适合 GPU 资源紧张或 Python CUDA 不可用时<br><br>"
                 "<b>Vulkan 后端可选模型</b><br>"
-                "• <b>rife-v3.1</b>：最新通用模型（推荐）<br>"
+                "• <b>rife-v3.1</b>：唯一支持 Vulkan 的模型（推荐）<br>"
+                "• rife-v3.0/v2.4/anime 只有 Python CUDA 后端，选择 Vulkan 时会自动回退<br>"
                 "　精度最高，运动场景伪影最少<br>"
                 "• <b>rife-v3.0</b>：通用模型<br>"
                 "　速度略快于 v3.1，质量略低<br>"
@@ -569,6 +581,9 @@ class HomeInterface(QWidget):
         self._sr_backend_label = BodyLabel("后端")
         sr_row.addWidget(self._sr_backend_label)
         self._sr_backend_combo = QtWidgets.QComboBox()
+        self._sr_backend_combo.setToolTip(
+            "🐍 Python CUDA: 可用 ✅\n"
+            "⚡ Vulkan: 需要下载 ncnn 模型文件（.bin/.param），当前不可用时会自动回退 Python")
         for b in config.srBackend.validator.options:
             self._sr_backend_combo.addItem({"python": "🐍 Python", "ncnn": "⚡ Vulkan"}.get(b, b), b)
         self._sr_backend_combo.setCurrentIndex(
@@ -613,6 +628,9 @@ class HomeInterface(QWidget):
         self._fi_model_label = BodyLabel("模型")
         fi_row.addWidget(self._fi_model_label)
         self._fi_model_combo = QtWidgets.QComboBox()
+        self._fi_model_combo.setToolTip(
+            "Vulkan 模式下仅 rife-v3.1 可用\n"
+            "其他模型选择 Vulkan 后端时会自动回退到 Python CUDA")
         flowframes_names = {"rife-v3.1": "RIFE 3.1", "rife-v3.0": "RIFE 3.0",
                             "rife-v2.4": "RIFE 2.4", "rife-anime": "RIFE 1.8"}
         for m in config.fiModelName.validator.options:
@@ -642,6 +660,9 @@ class HomeInterface(QWidget):
             self._fi_backend_combo.addItem({"python": "🐍 Python", "ncnn": "⚡ Vulkan"}.get(b, b), b)
         self._fi_backend_combo.setCurrentIndex(
             self._fi_backend_combo.findData(config.fiBackend.value))
+        self._fi_backend_combo.setToolTip(
+            "🐍 Python CUDA: 一次性加载模型到GPU 速度快但占显存\n"
+            "⚡ Vulkan: 每次启动exe加载模型 几乎不吃GPU但慢")
         fi_row.addWidget(self._fi_backend_combo)
 
         # Vulkan/Python 切换时显示/隐藏 模型+线程 选择
@@ -1648,9 +1669,18 @@ class HomeInterface(QWidget):
                     value = self.video_display_component.preview_coordinates_to_video_coordinates(value)
                 options[key] = value
             
-            # 清理缓存, 使用动态路径
+            # 清理缓存, 使用独立处理目录隔离 Phase 1 输出
             task.output_path = None
-            output_path = task.output_path
+            _default_out = task.output_path  # 原始目标路径（下载目录）
+            _need_enhance = (config.enableSuperResolution.value or config.enableFrameInterpolation.value)
+            if _need_enhance:
+                # 有增强时把 Phase 1 输出放到处理目录，避免干扰
+                _processing_root = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '_processing')
+                os.makedirs(_processing_root, exist_ok=True)
+                output_path = os.path.join(_processing_root, os.path.basename(_default_out))
+            else:
+                # 无增强时直接放到目标目录
+                output_path = _default_out
             
             # 为每个任务创建独立的 remote caller
             remote_caller = SubtitleRemoverRemoteCall()
@@ -1685,11 +1715,22 @@ class HomeInterface(QWidget):
             # 任务完成处理 — 查找实际输出文件（扫除模式可能改名）
             task = self.task_list_component.get_task(task_index)
             if process.exitcode == 0 and task and task.status == TaskStatus.PROCESSING:
-                # 扫描实际输出（VSR命名规范, glob匹配_VSR*文件）
                 from backend.tools.common_tools import vsr_glob_outputs
+                # 1) 优先在处理目录中查找
                 out_dir = os.path.dirname(output_path)
                 candidates = vsr_glob_outputs(out_dir, Path(task.path).stem)
-                # 优先取最新的文件
+                # 2) 扫除模式可能把文件写到了原始视频目录
+                if not candidates:
+                    _orig_candidates = vsr_glob_outputs(os.path.dirname(task.path), Path(task.path).stem)
+                    if _orig_candidates:
+                        import shutil
+                        _src = _orig_candidates[0]
+                        _dst = os.path.join(out_dir, os.path.basename(_src))
+                        try:
+                            shutil.move(_src, _dst)
+                            candidates = [_dst]
+                        except Exception:
+                            candidates = [_src]
                 if candidates:
                     candidates.sort(key=os.path.getmtime, reverse=True)
                     output_path = candidates[0]
@@ -1744,11 +1785,10 @@ class HomeInterface(QWidget):
                 f"并发数 {max_workers} | 共 {len(pending_tasks)} 个任务"
                 + (" | Phase1→Phase2 分批调度" if _need_enhancement else ""))
 
-            # 分批调度: 每批 max_workers 个任务, 批内 Phase1→屏障→Phase2
+            # 分批调度: 每批 max_workers 个任务, 批内 Phase1→Phase2 同步等待
             def task_manager():
                 remaining = list(pending_tasks)  # (task_index, task)
                 batch_no = 0
-                _prev_phase2_futures = []  # 上一批Phase2的futures
 
                 while remaining and self.running_task:
                     batch_no += 1
@@ -1771,7 +1811,7 @@ class HomeInterface(QWidget):
                     if not self.running_task:
                         break
 
-                    # ── Phase 2: 提交到后台 (GPU空闲期下一批Phase1已开始) ──
+                    # ── Phase 2: 同步等待本批全部增强完成 ──
                     if _need_enhancement:
                         enhance_batch = []
                         for task_index, task in batch:
@@ -1780,26 +1820,23 @@ class HomeInterface(QWidget):
                                 enhance_batch.append((task_index, t))
 
                         if enhance_batch:
-                            _p2_exec = ThreadPoolExecutor(max_workers=len(enhance_batch))
-                            _p2_futures = []
-                            for task_index, t in enhance_batch:
-                                self.task_list_component.update_task_status(
-                                    task_index, TaskStatus.PROCESSING)
-                                future = _p2_exec.submit(
-                                    self._run_enhancement_task, task_index, t)
-                                _p2_futures.append(future)
-                            _prev_phase2_futures.append((_p2_exec, _p2_futures))
                             self._append_output(
-                                f"  批次 {batch_no}: Phase2 已启动(后台), 下一批Phase1可立即开始")
-
-                # 等待所有 Phase2 完成
-                for _p2_exec, _p2_futures in _prev_phase2_futures:
-                    for future in _p2_futures:
-                        try:
-                            future.result()
-                        except Exception as e:
-                            pass
-                    _p2_exec.shutdown(wait=True)
+                                f"  批次 {batch_no}: Phase2 开始({len(enhance_batch)}个任务)...")
+                            with ThreadPoolExecutor(max_workers=len(enhance_batch)) as _p2_exec:
+                                _p2_futures = []
+                                for task_index, t in enhance_batch:
+                                    self.task_list_component.update_task_status(
+                                        task_index, TaskStatus.PROCESSING)
+                                    future = _p2_exec.submit(
+                                        self._run_enhancement_task, task_index, t)
+                                    _p2_futures.append(future)
+                                for future in as_completed(_p2_futures):
+                                    try:
+                                        future.result()
+                                    except Exception as e:
+                                        print(f"Phase2 task failed: {e}")
+                            self._append_output(
+                                f"  批次 {batch_no}: Phase2 全部完成({len(enhance_batch)}个任务)")
 
                 if self.running_task:
                     self._check_all_tasks_finished()
@@ -1821,6 +1858,12 @@ class HomeInterface(QWidget):
             from backend.main import SubtitleRemover
             from backend.tools.common_tools import vsr_output_path
             # 增强输出路径 (VSR 命名规范 — 包含全部操作标签)
+            # 尊重 saveDirectory 配置
+            _save_dir = config.saveDirectory.value
+            if _save_dir:
+                _base_path = os.path.join(_save_dir, os.path.basename(task.path))
+            else:
+                _base_path = task.path
             _sr_on = config.enableSuperResolution.value
             _fi_on = config.enableFrameInterpolation.value
             # 从 Phase1 输出提取扫除轮数
@@ -1838,7 +1881,7 @@ class HomeInterface(QWidget):
             if _fi_on:
                 _ops_parts.append(f"FI{config.fiMultiplier.value}x")
             # 完整路径: 包含所有操作
-            final_output = vsr_output_path(task.path, ops="_".join(_ops_parts))
+            final_output = vsr_output_path(_base_path, ops="_".join(_ops_parts))
 
             SubtitleRemover.run_enhancement_only(
                 input_path=task.output_path,

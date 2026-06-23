@@ -218,3 +218,106 @@ Single task VRAM = max(model baseline × resolution factor × depth factor, dete
 Multi-task VRAM = first task VRAM + second model×0.5 + (concurrency-1) × first task VRAM × 0.40
 Overflow check = total > GPU VRAM × 0.90 (10% headroom)
 ```
+
+---
+
+## 7. Video Enhancement (Super-Resolution & Frame Interpolation)
+
+### 7.1 Overview
+
+This module is a newly added video quality enhancement feature for the VSR Modded Edition, containing **Super-Resolution (SR)** and **Frame Interpolation (FI)** sub-modules, which can be used separately or in combination (SR first, then FI).
+
+### 7.2 Super-Resolution (Real-ESRGAN)
+
+| Item | Description |
+|------|-------------|
+| **Algorithm** | Real-ESRGAN (BSRGAN improvement, BSD 3-Clause License) |
+| **Python CUDA Backend** | `realesrgan` pip package, models auto-download to `resources/weights/` |
+| **ncnn-Vulkan Backend** | Via `realesrgan-ncnn-vulkan.exe`, ⚠️ model files hosted on GitHub LFS, restricted in China, auto-fallback to Python |
+
+**Status Indicators**:
+- ✅ **Python CUDA**: Working (requires realesrgan pip package)
+- ⚠️ **ncnn-Vulkan**: Model files (.bin/.param) on GitHub LFS — auto-fallback to Python when download fails
+
+**Available Models**:
+```
+realesr-general-x4v3         # ⚠️ Default, may need download
+RealESRGAN_x4plus            # ✅ General 4x SR
+RealESRGAN_x4plus_anime_6B   # Anime-optimized
+RealESRGAN_x2plus            # 2x SR
+```
+
+### 7.3 waifu2x Anime Super-Resolution
+
+| Item | Description |
+|------|-------------|
+| **Engine** | waifu2x-ncnn-vulkan (MIT License, v20250915) |
+| **Backend** | ncnn-Vulkan (only option) |
+| **Model Architectures** | `cunet` (general anime) / `upconv_anime` (lightweight anime) |
+| **Denoise Level** | 0-3 |
+| **Scale Ratio** | 1x-10x (custom step 0.1) |
+| **Multi-threading** | Configurable, default `1:2:2` (process:scale:denoise) |
+
+**Status**: ✅ Working
+
+### 7.4 Frame Interpolation (RIFE)
+
+| Item | Description |
+|------|-------------|
+| **Algorithm** | RIFE (Real-Time Intermediate Flow Estimation) v3.x |
+| **Model Source** | Flowframes RIFE39 model (flownet.pkl, 27MB) |
+| **Interpolation Multiplier** | 2x / 3x / 4x / 8x |
+
+#### Python CUDA Backend
+
+| Aspect | Description |
+|--------|-------------|
+| **Principle** | PyTorch loads flownet.pkl, optical flow interpolation |
+| **Status** | ⚠️ **Experimental** — import issue recently fixed (relative import), pending user validation |
+| **Dependency** | PyTorch (CUDA), pre-installed in embedded Python |
+| **Model Path** | `resources/models/rife/flownet.pkl` |
+
+**Known Issues**:
+- ⚠️ `No module named 'model.RIFE_HDv3'` → ✅ Fixed (changed to `from .model.RIFE_HDv3`)
+  - Root cause: QPT environment modifies sys.path, absolute imports fail
+- ⚠️ Fix pending user verification after restart
+
+#### ncnn-Vulkan Backend
+
+| Aspect | Description |
+|--------|-------------|
+| **Engine** | `rife-ncnn-vulkan.exe` (from Flowframes, 4.1MB) |
+| **Mode** | Pair mode (`-0 f0 -1 f1 -o out`), process one pair at a time |
+| **Status** | ⚠️ **Pair mode works but slow** — launches exe per pair, N frames = N-1 launches |
+
+**Known Issues**:
+- ❌ **Directory mode deprecated**: Old exe produces garbage output with rife-v3 (4 input → 8 corrupted output frames)
+- ⚠️ **Pair mode silent failures**: `STATUS_ACCESS_VIOLATION` on some PNG decodes, still writes output file
+- ⚠️ **Model compatibility**: Old exe doesn't support rife-v4.6 `Eltwise` layer, use rife-v3.1 models
+
+### 7.5 Enhancement Pipeline Workflow
+
+```
+Input video → [Optional] Super-Resolution (Real-ESRGAN / waifu2x)
+             → [Optional] Frame Interpolation (RIFE)
+             → Output video (original audio preserved)
+```
+
+The pipeline is chained by `VideoSuperResolution` and `VideoFrameInterpolation` classes:
+1. SR stage: Extract all frames → process each frame → encode as temp video
+2. FI stage: Extract SR'd frames → RIFE interpolation → encode final video + original audio
+
+### 7.6 Configuration Parameters (config.json)
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `srModelName` | `RealESRGAN_x4plus` | SR model name |
+| `srBackend` | `python` | SR backend: `python` / `ncnn` |
+| `srScale` | 4 | SR scale factor |
+| `waifu2xModelArch` | `cunet` | waifu2x model architecture |
+| `waifu2xDenoise` | 0 | waifu2x denoise level |
+| `waifu2xScale` | 2 | waifu2x scale factor |
+| `fiModelName` | `rife-v3.1` | FI model name |
+| `fiBackend` | `python` | FI backend: `python` / `ncnn` |
+| `fiMultiplier` | 2 | FI multiplier (2/3/4/8) |
+| `fiNcnnThreads` | `1:2:2` | ncnn thread config (process:scale:denoise) |

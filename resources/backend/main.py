@@ -29,7 +29,6 @@ from backend.inpaint.sttn_det_inpaint import STTNDetInpaint
 from backend.inpaint.lama_inpaint import LamaInpaint
 from backend.inpaint.opencv_inpaint import OpenCVInpaint
 from backend.inpaint.propainter_inpaint import PropainterInpaint
-from backend.inpaint.e2fgvi_inpaint import E2FGVIInpaint
 from backend.tools.inpaint_tools import create_mask, create_unified_mask, create_polygon_mask, batch_generator, expand_frame_ranges
 from backend.tools.model_config import ModelConfig
 from backend.tools.ffmpeg_cli import FFmpegCLI
@@ -1173,8 +1172,7 @@ if __name__ == '__main__':
     multiprocessing.set_start_method("spawn")
     from backend.tools.args_handler import parse_args
     args = parse_args()
-    # force english
-    config.set(config.interface, 'en')
+    # 尊重用户配置的界面语言（不移除注释以保持兼容性）
     TRANSLATION_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'interface', f"{config.interface.value}.ini")
     tr.read(TRANSLATION_FILE, encoding='utf-8')
     sr = SubtitleRemover(args.input)

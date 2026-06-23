@@ -124,12 +124,31 @@ def vsr_output_path(input_path, ops="", ext=None):
 
 
 def vsr_glob_outputs(input_dir, original_stem):
-    """Glob 匹配 VSR 产物 (新旧命名兼容), 按修改时间降序。"""
+    """Glob 匹配 VSR 产物, 按修改时间降序。
+
+    只返回 Phase 1 输出（裸 _VSR 或 _VSR_SWEEP*），
+    排除含 _SR / _FI 标签的增强产物。
+    """
     import glob as _glob
+    import re as _re
     stem = vsr_clean_stem(original_stem)
-    pattern = os.path.join(input_dir, f"{stem}_VSR*")
-    candidates = _glob.glob(pattern + ".*")
+    prefix = os.path.join(input_dir, f"{stem}_VSR")
+
+    # 精确匹配裸 _VSR（无任何后缀标签）
+    bare = _glob.glob(prefix + ".*")
+    # 匹配 _VSR_SWEEP{N}（扫除标签属于 Phase 1）
+    sweep = _glob.glob(prefix + "_SWEEP*.*")
+    candidates = bare + sweep
+
+    # 回退：旧版兼容，排除增强标签
     if not candidates:
-        candidates = _glob.glob(pattern + ".mp4")
+        all_vsr = _glob.glob(prefix + "*")
+        candidates = []
+        for c in all_vsr:
+            # 检查 _VSR 之后是否出现 _SR 或 _FI 标签
+            suffix = c[len(prefix):]  # eg ".mp4", "_SWEEP2.mp4", "_SR2x_FI4x.mp4"
+            if not _re.search(r'_(SR|FI)\d', suffix):
+                candidates.append(c)
+
     candidates.sort(key=os.path.getmtime, reverse=True)
     return candidates
