@@ -933,7 +933,6 @@ def enhance_video_pipeline(
     audio_source = input_path  # 始终指向有音轨的原始输入
     temp_files = []
     sr_first = config.enhanceSrFirst.value
-    _out_dir = os.path.dirname(os.path.abspath(output_path))
 
     # =========================================================
     # 内部函数：超分辨率处理步骤
@@ -1057,30 +1056,13 @@ def enhance_video_pipeline(
         _log(f"❌ 视频增强失败")
         raise
     finally:
-        # 清理已知中间文件
+        # 仅清理本任务的已知中间文件 (不glob, 避免误删并发任务的文件)
         for tf in temp_files:
             try:
                 if os.path.exists(tf):
                     os.unlink(tf)
             except Exception:
                 pass
-        # 清理遗留中间产物 (fi_tmp / sr_tmp / 无扩展名残留)
-        try:
-            import glob as _g
-            _patterns = [
-                os.path.join(_out_dir, "*.fi_tmp.mp4"),
-                os.path.join(_out_dir, "*.sr_tmp.mp4"),
-                os.path.join(_out_dir, "*_VSR"),        # 无扩展名残留
-                os.path.join(_out_dir, "*_VSR.tmp*"),   # 临时文件
-            ]
-            for _pat in _patterns:
-                for _f in _g.glob(_pat):
-                    try:
-                        os.unlink(_f)
-                    except Exception:
-                        pass
-        except Exception:
-            pass
     return output_path
 
 
