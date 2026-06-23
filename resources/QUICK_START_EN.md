@@ -75,12 +75,40 @@ Each pass: cleaned output → re-detect → re-inpaint
            Progressively removes stubborn watermarks
 ```
 
-### 3️⃣ Advanced Settings
+### 3️⃣ Subtitle Extraction
+
+One-click subtitle text extraction:
+- Extraction modes: **Row mode** (default), **Column mode**, **Float mode**
+- Click "Extract", results displayed automatically
+- Export as plain text (.txt) or standard subtitle (.srt)
+- Expand "Joint Proofreading" to use 3 OCR models for best accuracy
+
+### 4️⃣ Video Enhancement (SR + FI)
+
+New "Video Enhancement" section:
+
+| Feature | Description |
+|---------|-------------|
+| **Real-ESRGAN SR** | Upscale video clarity, supports 2x/4x |
+| **waifu2x Anime SR** | Anime-optimized super-resolution |
+| **RIFE Frame Interpolation** | Boost frame rate (2x/3x/4x/8x) for smoother video |
+| **Combined Pipeline** | Chain SR + FI in either order |
+
+### 5️⃣ Advanced Settings
 
 Available in the "Settings" page:
 - **Processing Depth**: 0=fast/light, 100=thorough
-- **Inpainting Model**: ProPainter (best), STTN, LaMa, E2FGVI
-- **VRAM Monitor**: Prevents out-of-memory errors
+- **Inpainting Model**: ProPainter, STTN, LaMa, E2FGVI, OpenCV
+- **Detection Model**: PP-OCRv4/v5, SAM2-Tiny/Small/Base/Large
+- **VRAM Management**: Passive monitoring + Active scheduling + Dedicated VRAM lock
+- **GPU Monitor**: View process GPU usage in real-time
+
+### 6️⃣ AI Navigation Pages
+
+Bottom nav bar provides three independent pages:
+- 🤖 **AI Video Generation** — AI video creation tools
+- 🎵 **AI Audio** — Audio processing features
+- ✂️ **Video Editor** — Video clip editing
 
 ---
 
@@ -92,23 +120,28 @@ Available in the "Settings" page:
 - Check GPU is being used (NVIDIA is fastest)
 
 **Q：Watermark not fully removed?**
-- Enable "多循环暴力扫除" and increase iteration count
+- Enable "Multi-Sweep" mode and increase iteration count
 - Make sure the watermark area is fully selected
 - Try ProPainter or LaMa model
 
 **Q：Out of memory (OOM)?**
-- Enable VRAM monitoring in settings
+- Enable VRAM monitoring & active scheduling
 - Lower processing depth
 - Reduce concurrent tasks
+- Enable "Dedicated VRAM Lock" to prevent spillover
 
 **Q：Where is the output file?**
-- Same directory as input video, with `_no_sub` suffix
-- Multi-sweep adds iteration count: e.g., `video_3clean_no_sub.mp4`
+- Same directory as input video, with operation tag in filename
+- Multi-sweep adds iteration count: e.g., `video_3clean.mp4`
+
+**Q：How to check GPU usage?**
+- Click "View GPU Occupancy" in the VRAM section
+- Dialog shows all GPU processes ranked by compute load
 
 ---
 
 ## 🔗 Links
 
-- [GitHub Repository](https://github.com/Rambolv/Video_Tools)
+- [GitHub Repository](https://github.com/Rambolv/My_Video_Tools)
 - [Full Documentation](README_en.md)
-- [Report Issues](https://github.com/Rambolv/Video_Tools/issues)
+- [Report Issues](https://github.com/Rambolv/My_Video_Tools/issues)
