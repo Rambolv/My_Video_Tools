@@ -1676,11 +1676,6 @@ class HomeInterface(QWidget):
             if not self.running_task:
                 return
 
-            # ── 错峰启动：防止多进程同时初始化 CUDA 上下文造成排队等待 ──
-            _stagger = task_index * 3.0
-            if _stagger > 0 and task_index > 0:
-                self._append_output(f"⏳ 任务 #{task_index+1} 等待 {_stagger:.0f}s 错峰启动（防CUDA拥堵）...")
-                time.sleep(min(_stagger, 15.0))
             process.start()
             ProcessManager.instance().add_process(process)
             self.running_processes.append(process)
