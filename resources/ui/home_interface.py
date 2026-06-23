@@ -1736,64 +1736,62 @@ class HomeInterface(QWidget):
             
             max_workers = min(config.maxConcurrentTasks.value, len(pending_tasks))
 
-            # ── 检测是否需要增强阶段 ──
             _need_enhancement = (
                 config.enableSuperResolution.value or
                 config.enableFrameInterpolation.value
             )
-            _phase1_label = ("字幕去除 + 增强"
-                if not _need_enhancement else "字幕去除 (Phase 1/2)")
             self._append_output(
-                f"启动 {max_workers} 个并发任务（共 {len(pending_tasks)} 个任务）→ {_phase1_label}")
+                f"并发数 {max_workers} | 共 {len(pending_tasks)} 个任务"
+                + (" | Phase1→Phase2 分批调度" if _need_enhancement else ""))
 
-            # 在后台线程中管理分阶段线程池
+            # 分批调度: 每批 max_workers 个任务, 批内 Phase1→屏障→Phase2
             def task_manager():
-                # ═══════════════ Phase 1: 字幕去除 ═══════════════
-                with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                    futures = {}
-                    for task_index, task in pending_tasks:
-                        future = executor.submit(self._run_single_task, task_index, task)
-                        futures[future] = task_index
+                remaining = list(pending_tasks)  # (task_index, task)
+                batch_no = 0
+                while remaining and self.running_task:
+                    batch_no += 1
+                    batch = remaining[:max_workers]
+                    remaining = remaining[max_workers:]
+                    self._append_output(f"═══ 批次 {batch_no}: {len(batch)} 个任务 → Phase1 字幕去除 ═══")
 
-                    for future in as_completed(futures):
-                        task_index = futures[future]
-                        try:
-                            future.result()
-                        except Exception as e:
-                            print(f"Task {task_index} Phase 1 failed: {e}")
+                    # ── Phase 1: 字幕去除 ──
+                    with ThreadPoolExecutor(max_workers=len(batch)) as executor:
+                        futures = {}
+                        for task_index, task in batch:
+                            future = executor.submit(self._run_single_task, task_index, task)
+                            futures[future] = task_index
+                        for future in as_completed(futures):
+                            try:
+                                future.result()
+                            except Exception as e:
+                                print(f"Task {futures[future]} Phase1 failed: {e}")
 
-                if not self.running_task:
-                    self._check_all_tasks_finished()
-                    return
+                    if not self.running_task:
+                        break
 
-                # ═══════════════ Phase 2: 视频增强 ═══════════════
-                if _need_enhancement:
-                    self._append_output("═══ 全部字幕去除完成 → Phase 2: 视频增强 ═══")
-                    # 收集 Phase 1 输出路径
-                    enhance_tasks = []
-                    for task_index, task in pending_tasks:
-                        t = self.task_list_component.get_task(task_index)
-                        if t and t.status == TaskStatus.COMPLETED and t.output_path:
-                            enhance_tasks.append((task_index, t))
+                    # ── Phase 2: 视频增强 ──
+                    if _need_enhancement:
+                        self._append_output(f"  批次 {batch_no}: Phase2 视频增强…")
+                        enhance_batch = []
+                        for task_index, task in batch:
+                            t = self.task_list_component.get_task(task_index)
+                            if t and t.status == TaskStatus.COMPLETED and t.output_path:
+                                enhance_batch.append((task_index, t))
 
-                    if enhance_tasks:
-                        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                            efutures = {}
-                            for task_index, t in enhance_tasks:
-                                self._append_output(
-                                    f"  启动增强: {t.name}")
-                                self.task_list_component.update_task_status(
-                                    task_index, TaskStatus.PROCESSING)
-                                future = executor.submit(
-                                    self._run_enhancement_task, task_index, t)
-                                efutures[future] = task_index
-
-                            for future in as_completed(efutures):
-                                task_index = efutures[future]
-                                try:
-                                    future.result()
-                                except Exception as e:
-                                    print(f"Task {task_index} Phase 2 failed: {e}")
+                        if enhance_batch:
+                            with ThreadPoolExecutor(max_workers=len(enhance_batch)) as executor:
+                                efutures = {}
+                                for task_index, t in enhance_batch:
+                                    self.task_list_component.update_task_status(
+                                        task_index, TaskStatus.PROCESSING)
+                                    future = executor.submit(
+                                        self._run_enhancement_task, task_index, t)
+                                    efutures[future] = task_index
+                                for future in as_completed(efutures):
+                                    try:
+                                        future.result()
+                                    except Exception as e:
+                                        print(f"Task {efutures[future]} Phase2 failed: {e}")
 
                 if self.running_task:
                     self._check_all_tasks_finished()
