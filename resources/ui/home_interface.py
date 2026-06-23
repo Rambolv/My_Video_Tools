@@ -1748,6 +1748,8 @@ class HomeInterface(QWidget):
             def task_manager():
                 remaining = list(pending_tasks)  # (task_index, task)
                 batch_no = 0
+                _prev_phase2_futures = []  # 上一批Phase2的futures
+
                 while remaining and self.running_task:
                     batch_no += 1
                     batch = remaining[:max_workers]
@@ -1769,9 +1771,8 @@ class HomeInterface(QWidget):
                     if not self.running_task:
                         break
 
-                    # ── Phase 2: 视频增强 ──
+                    # ── Phase 2: 提交到后台 (GPU空闲期下一批Phase1已开始) ──
                     if _need_enhancement:
-                        self._append_output(f"  批次 {batch_no}: Phase2 视频增强…")
                         enhance_batch = []
                         for task_index, task in batch:
                             t = self.task_list_component.get_task(task_index)
@@ -1779,19 +1780,26 @@ class HomeInterface(QWidget):
                                 enhance_batch.append((task_index, t))
 
                         if enhance_batch:
-                            with ThreadPoolExecutor(max_workers=len(enhance_batch)) as executor:
-                                efutures = {}
-                                for task_index, t in enhance_batch:
-                                    self.task_list_component.update_task_status(
-                                        task_index, TaskStatus.PROCESSING)
-                                    future = executor.submit(
-                                        self._run_enhancement_task, task_index, t)
-                                    efutures[future] = task_index
-                                for future in as_completed(efutures):
-                                    try:
-                                        future.result()
-                                    except Exception as e:
-                                        print(f"Task {efutures[future]} Phase2 failed: {e}")
+                            _p2_exec = ThreadPoolExecutor(max_workers=len(enhance_batch))
+                            _p2_futures = []
+                            for task_index, t in enhance_batch:
+                                self.task_list_component.update_task_status(
+                                    task_index, TaskStatus.PROCESSING)
+                                future = _p2_exec.submit(
+                                    self._run_enhancement_task, task_index, t)
+                                _p2_futures.append(future)
+                            _prev_phase2_futures.append((_p2_exec, _p2_futures))
+                            self._append_output(
+                                f"  批次 {batch_no}: Phase2 已启动(后台), 下一批Phase1可立即开始")
+
+                # 等待所有 Phase2 完成
+                for _p2_exec, _p2_futures in _prev_phase2_futures:
+                    for future in _p2_futures:
+                        try:
+                            future.result()
+                        except Exception as e:
+                            pass
+                    _p2_exec.shutdown(wait=True)
 
                 if self.running_task:
                     self._check_all_tasks_finished()
