@@ -169,6 +169,7 @@ def _extract_frames(video_path: str, out_dir: str, log_cb=None) -> float:
     ff = FFmpegCLI.instance().ffmpeg_path
     cmd = [
         ff, "-y", "-i", video_path,
+        "-start_number", "0",
         "-q:v", "1",
         "-loglevel", "error",
         os.path.join(out_dir, "%08d.png"),
