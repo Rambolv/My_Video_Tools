@@ -308,21 +308,20 @@ def interpolate_video_ncnn(
         os.makedirs(frames_out, exist_ok=True)
 
         if multiplier == 2:
-            # 参考 Flowframes: 原帧 → 插值帧 → 原帧 → 插值帧 交替, 编号从1开始
+            # 目录模式: 交错合并 原帧→插值帧 (Flowframes验证的正确顺序)
             cmd = [_NCNN_EXE, "-i", frames_in, "-o", frames_out,
                    "-m", model_dir, "-g", str(gpu_id),
                    "-j", _ncnn_threads(),
-                   "-f", "%08d.png"]  # 显式指定零填充8位命名
+                   "-f", "%08d.png"]
             if tta:
                 cmd.append("-x")
             _log("  目录模式 2x 插值…")
             subprocess.check_output(cmd, stderr=subprocess.DEVNULL)
 
-            # 交错合并: 原帧→插值帧交替 (Flowframes 验证的正确顺序)
             interp_files = natsorted(glob.glob(os.path.join(frames_out, "*.png")))
             merged = os.path.join(tmp_root, "merged")
             os.makedirs(merged, exist_ok=True)
-            out_idx = 1  # Flowframes 从1开始编号
+            out_idx = 0
             for i in range(len(frame_files) - 1):
                 shutil.copy2(frame_files[i], os.path.join(merged, f"{out_idx:08d}.png"))
                 out_idx += 1
@@ -334,7 +333,7 @@ def interpolate_video_ncnn(
 
             shutil.rmtree(frames_out, ignore_errors=True)
             os.rename(merged, frames_out)
-            _log(f"  生成 {out_idx - 1} 帧 (原 {len(frame_files)} 帧 × {multiplier}x)")
+            _log(f"  生成 {out_idx} 帧 (原 {len(frame_files)} 帧 × {multiplier}x)")
 
         else:
             # 高倍率：多级 2x 插值
@@ -353,12 +352,11 @@ def interpolate_video_ncnn(
                 _log(f"  第 {level+1} 级 2x 插值…")
                 subprocess.check_output(cmd, stderr=subprocess.DEVNULL)
 
-                # 交错合并 (原帧→插值帧交替, 编号从1开始)
                 orig = natsorted(glob.glob(os.path.join(work, "*.png")))
                 interp = natsorted(glob.glob(os.path.join(level_out, "*.png")))
                 merged = os.path.join(tmp_root, f"merged_{level}")
                 os.makedirs(merged, exist_ok=True)
-                out_idx = 1
+                out_idx = 0
                 for i in range(len(orig) - 1):
                     shutil.copy2(orig[i], os.path.join(merged, f"{out_idx:08d}.png"))
                     out_idx += 1
@@ -395,16 +393,13 @@ def interpolate_video_ncnn(
         _log("步骤 3/3: 组装视频…")
         ff = _find_ffmpeg()
         target_fps = fps * multiplier
-        # 读取第一帧尺寸 (编号从1开始, 参考Flowframes)
         _first_files = natsorted(glob.glob(os.path.join(frames_out, "*.png")))
         if not _first_files:
             raise RuntimeError("插值后无输出帧")
         h, w = cv2.imread(_first_files[0]).shape[:2]
 
-        # 组装无声视频 (帧编号从1开始)
         temp_video = os.path.join(tmp_root, "temp_no_audio.mp4")
-        cmd = [ff, "-y", "-start_number", "1",
-               "-framerate", str(target_fps),
+        cmd = [ff, "-y", "-framerate", str(target_fps),
                "-i", os.path.join(frames_out, "%08d.png"),
                "-r", str(target_fps),
                "-vcodec", "libx264", "-crf", "18",
