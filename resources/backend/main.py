@@ -861,6 +861,7 @@ class SubtitleRemover:
                         pass
                     self.video_temp_file = tempfile.NamedTemporaryFile(
                         suffix='.mp4', delete=False)
+                    self.video_temp_file.close()
                     shutil.copy2(prev_temp_path, self.video_temp_file.name)
                 else:
                     # 成功，删除上一轮临时文件
