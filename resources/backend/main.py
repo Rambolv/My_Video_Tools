@@ -701,25 +701,17 @@ class SubtitleRemover:
             self.apply_processing_depth()
             self.log_model()
 
-            # ── 轻量级字幕预扫描：检测到无字幕直接跳过模型加载 ──
-            _mode_needs_detection = config.inpaintMode.value not in (
-                InpaintMode.STTN_AUTO,  # STTN-Auto 不做检测, 始终需要模型
-            )
+            # ── 先检测字幕, 无字幕时跳过修复模型加载 ──
+            # STTN-Auto 不依赖OCR检测, 始终需要模型
+            _mode_skip_ok = config.inpaintMode.value not in (InpaintMode.STTN_AUTO,)
             _skip_inpaint = False
-            if _mode_needs_detection:
-                self.append_output("🔍 字幕预扫描中…")
-                try:
-                    _pre_detector = SubtitleDetect(self.video_path, self.sub_areas)
-                    _pre_list = _pre_detector.find_subtitle_frame_no(sub_remover=self)
-                    del _pre_detector
-                    gc.collect()
-                    if len(_pre_list) == 0:
-                        self.append_output("⚡ 未检测到字幕, 跳过修复模型加载, 直接进入后续阶段")
-                        _skip_inpaint = True
-                    else:
-                        self.append_output(f"  检测到 {len(_pre_list)} 个含字幕帧, 加载修复模型…")
-                except Exception as e:
-                    self.append_output(f"  预扫描跳过: {e} (将正常加载模型)")
+            if _mode_skip_ok:
+                _detector = SubtitleDetect(self.video_path, self.sub_areas)
+                _pre_sub_list = _detector.find_subtitle_frame_no(sub_remover=self)
+                del _detector; gc.collect()
+                if len(_pre_sub_list) == 0:
+                    self.append_output("⚡ 未检测到字幕, 跳过模型加载, 直接进入后续阶段")
+                    _skip_inpaint = True
 
             # ---- 多循环暴力扫除模式 ----
             if config.sweepModeEnabled.value and not _skip_inpaint:
