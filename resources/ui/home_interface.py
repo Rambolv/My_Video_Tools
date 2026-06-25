@@ -10,7 +10,7 @@ from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from PySide6.QtWidgets import (QWidget, QHBoxLayout, QVBoxLayout, QSplitter,
                                QTabWidget, QScrollArea, QSizePolicy)
-from PySide6.QtCore import Slot, QRect, Signal, Qt, QMetaObject, Q_ARG
+from PySide6.QtCore import Slot, QRect, Signal, Qt, QMetaObject, Q_ARG, QTimer
 from PySide6 import QtWidgets
 from qfluentwidgets import (PushButton, CardWidget, PlainTextEdit, FluentIcon,
                             BodyLabel, InfoBar, SwitchButton, SpinBox,
@@ -114,6 +114,8 @@ class HomeInterface(QWidget):
     # 用于后台线程安全地更新按钮文本/启用状态
     _btn_text_signal = Signal(object, str)    # (button, text)
     _btn_enable_signal = Signal(object, bool) # (button, enabled)
+    # 用于后台线程安全地触发自动操作（自动关机/自动关程序）
+    _auto_action_signal = Signal()
 
     @staticmethod
     def _on_btn_text_changed(btn, text):
@@ -141,6 +143,7 @@ class HomeInterface(QWidget):
         self.running_process = None
         self.running_processes = []
         self.current_processing_task_index = -1
+        self._auto_action_triggered = False  # 防止重复触发自动操作
 
         self.__init_widgets()
         self.progress_signal.connect(self.update_progress)
@@ -150,6 +153,8 @@ class HomeInterface(QWidget):
         # 线程安全按钮操作
         self._btn_text_signal.connect(self._on_btn_text_changed)
         self._btn_enable_signal.connect(self._on_btn_enable_changed)
+        # 线程安全自动操作触发
+        self._auto_action_signal.connect(self._show_auto_action_dialog)
 
     def _build_inpaint_model_help(self):
         return (
@@ -921,6 +926,58 @@ class HomeInterface(QWidget):
         self._refresh_vram_display()
         self._build_vram_ref_table()
 
+        # ── 任务完成后自动操作 ──
+        auto_section = _SimpleCollapsible("⏰ 任务完成后自动操作", parent=card)
+        auto_section.setMinimumHeight(26)
+
+        # 自动关机
+        auto_shutdown_row = QtWidgets.QHBoxLayout()
+        auto_shutdown_row.setContentsMargins(8, 2, 8, 2)
+        auto_shutdown_label = BodyLabel("自动关机")
+        auto_shutdown_label.setToolTip(
+            "启用后，所有任务执行完毕 5 秒后自动关闭计算机")
+        auto_shutdown_row.addWidget(auto_shutdown_label)
+        auto_shutdown_row.addWidget(
+            HelpButton("自动关机说明",
+                       "启用后，所有任务执行完毕后将弹出 5 秒倒计时对话框，\n"
+                       "时间到后自动执行关机操作。\n"
+                       "可在对话框中点击「取消」按钮中止关机。"))
+        auto_shutdown_row.addStretch()
+        self._auto_shutdown_switch = SwitchButton()
+        self._auto_shutdown_switch.setChecked(config.autoShutdownAfterTask.value)
+        self._auto_shutdown_switch.checkedChanged.connect(
+            lambda checked: qconfig.set(config.autoShutdownAfterTask, checked))
+        auto_shutdown_row.addWidget(self._auto_shutdown_switch)
+        asw = QtWidgets.QWidget()
+        asw.setLayout(auto_shutdown_row)
+        asw.setMinimumHeight(26)
+        auto_section.addWidget(asw)
+
+        # 自动关闭程序
+        auto_close_row = QtWidgets.QHBoxLayout()
+        auto_close_row.setContentsMargins(8, 2, 8, 2)
+        auto_close_label = BodyLabel("自动关闭程序")
+        auto_close_label.setToolTip(
+            "启用后，所有任务执行完毕 5 秒后自动关闭本程序")
+        auto_close_row.addWidget(auto_close_label)
+        auto_close_row.addWidget(
+            HelpButton("自动关闭程序说明",
+                       "启用后，所有任务执行完毕后将弹出 5 秒倒计时对话框，\n"
+                       "时间到后自动关闭本程序。\n"
+                       "可在对话框中点击「取消」按钮中止关闭。"))
+        auto_close_row.addStretch()
+        self._auto_close_switch = SwitchButton()
+        self._auto_close_switch.setChecked(config.autoCloseProgramAfterTask.value)
+        self._auto_close_switch.checkedChanged.connect(
+            lambda checked: qconfig.set(config.autoCloseProgramAfterTask, checked))
+        auto_close_row.addWidget(self._auto_close_switch)
+        acw = QtWidgets.QWidget()
+        acw.setLayout(auto_close_row)
+        acw.setMinimumHeight(26)
+        auto_section.addWidget(acw)
+
+        card.addWidget(auto_section)
+
         # ── 操作按钮行 ──
         btn_layout = QtWidgets.QHBoxLayout()
         btn_layout.setSpacing(6)
@@ -1604,7 +1661,7 @@ class HomeInterface(QWidget):
             scrollbar.setValue(scrollbar.maximum())
 
     def _check_all_tasks_finished(self):
-        """检查所有任务是否完成，若是则恢复按钮状态"""
+        """检查所有任务是否完成，若是则恢复按钮状态并触发自动操作"""
         pending = self.task_list_component.get_pending_tasks()
         processing_exists = any(
             t.status == TaskStatus.PROCESSING 
@@ -1614,6 +1671,84 @@ class HomeInterface(QWidget):
             self.run_button.setVisible(True)
             self.stop_button.setVisible(False)
             self.running_processes = []
+
+            # ── 任务全部完成 — 检查自动关机/自动关程序 ──
+            self._trigger_auto_actions()
+
+    def _trigger_auto_actions(self):
+        """触发任务完成后的自动操作（自动关机 / 自动关程序）
+        可能从后台线程调用，通过信号转到主线程执行。
+        """
+        if self._auto_action_triggered:
+            return
+        self._auto_action_triggered = True
+
+        shutdown_enabled = config.autoShutdownAfterTask.value
+        close_enabled = config.autoCloseProgramAfterTask.value
+
+        if not shutdown_enabled and not close_enabled:
+            self._auto_action_triggered = False
+            return
+
+        self._append_output("")
+        self._append_output("=" * 50)
+        self._append_output("✅ 所有任务已完成！")
+
+        if shutdown_enabled:
+            self._append_output("⏰ 5 秒后自动关机（可在弹出对话框中取消）")
+        if close_enabled:
+            self._append_output("⏰ 5 秒后自动关闭程序（可在弹出对话框中取消）")
+        self._append_output("=" * 50)
+
+        # 通过信号转到主线程执行 UI 操作
+        self._auto_action_signal.emit()
+
+    def _show_auto_action_dialog(self):
+        """弹出倒计时对话框，执行自动操作（在主线程中调用）"""
+        from ui.component.countdown_dialog import CountdownDialog
+
+        shutdown_enabled = config.autoShutdownAfterTask.value
+        close_enabled = config.autoCloseProgramAfterTask.value
+
+        # 优先显示自动关机（优先级更高）
+        if shutdown_enabled:
+            dialog = CountdownDialog(CountdownDialog.ACTION_SHUTDOWN, 5, self.window())
+            result = dialog.exec()
+            if dialog.is_cancelled():
+                self._append_output("🔴 自动关机已取消")
+                CountdownDialog.cancel_shutdown()
+                # 取消关机后仍检查是否需要关程序
+                if close_enabled:
+                    QTimer.singleShot(500, self._show_close_program_dialog)
+            else:
+                self._append_output("🔌 正在关机...")
+                CountdownDialog.shutdown_system()
+        elif close_enabled:
+            QTimer.singleShot(500, self._show_close_program_dialog)
+
+    def _show_close_program_dialog(self):
+        """弹出关闭程序倒计时对话框"""
+        from ui.component.countdown_dialog import CountdownDialog
+
+        dialog = CountdownDialog(CountdownDialog.ACTION_CLOSE_PROGRAM, 5, self)
+        result = dialog.exec()
+        if dialog.is_cancelled():
+            self._append_output("🔴 自动关闭程序已取消")
+        else:
+            self._append_output("👋 正在关闭程序...")
+            # 延迟关闭，让输出消息有机会显示
+            QTimer.singleShot(500, self._do_close_program)
+
+    def _do_close_program(self):
+        """执行关闭程序"""
+        try:
+            ProcessManager.instance().terminate_all()
+        except Exception:
+            pass
+        # 关闭主窗口
+        window = self.window()
+        if window:
+            window.close()
 
     def append_output(self, *args):
         """兼容旧接口"""
@@ -1766,6 +1901,7 @@ class HomeInterface(QWidget):
             self.stop_button.setVisible(True)
             self.running_task = True
             self.running_processes = []
+            self._auto_action_triggered = False  # 新任务开始时重置自动操作标志
             
             # 保存当前选区到配置
             self.video_display_component.save_selections_to_config()

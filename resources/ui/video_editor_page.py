@@ -5,8 +5,7 @@ import os
 from PySide6 import QtWidgets, QtCore, QtGui
 from PySide6.QtCore import Qt
 from qfluentwidgets import (CardWidget, BodyLabel, StrongBodyLabel,
-                            PushButton, PrimaryPushButton, FluentIcon,
-                            InfoBar, InfoBarPosition)
+                            PushButton, PrimaryPushButton, FluentIcon)
 from backend.config import config, tr, VERSION, BASE_DIR
 from ui.component.donation_dialog import show_donation_dialog
 

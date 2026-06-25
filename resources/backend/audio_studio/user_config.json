@@ -1,0 +1,5 @@
+{
+  "ace_output_dir": "C:\\AI\\AITOOLS\\vsr_removecharacter_windows_gpu_v1.1.0\\vsr-v1.4.0-windows-nvidia-cuda-12.6-release_test\\resources\\backend\\audio_studio\\ace_outputs",
+  "ace_checkpoints_dir": "C:\\AI\\AITOOLS\\vsr_removecharacter_windows_gpu_v1.1.0\\vsr-v1.4.0-windows-nvidia-cuda-12.6-release_test\\resources\\backend\\audio_studio\\ace_checkpoints",
+  "models_dir": "C:\\AI\\AITOOLS\\vsr_removecharacter_windows_gpu_v1.1.0\\vsr-v1.4.0-windows-nvidia-cuda-12.6-release_test\\resources\\backend\\audio_studio\\models"
+}

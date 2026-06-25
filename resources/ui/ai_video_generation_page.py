@@ -119,32 +119,6 @@ class AIVideoGenPage(QtWidgets.QWidget):
 
         content_layout.addLayout(cards_row)
 
-        # ── 使用说明 ──
-        tip_card = CardWidget(content)
-        tip_card.setBorderRadius(12)
-        tl = QtWidgets.QVBoxLayout(tip_card)
-        tl.setContentsMargins(20, 16, 20, 16)
-        tl.setSpacing(6)
-
-        tip_title = StrongBodyLabel("💡 使用说明")
-        tip_title.setStyleSheet("font-size: 13px; font-weight: bold; color: #4aa3df;")
-        tl.addWidget(tip_title)
-
-        tips = [
-            "• 所有AI模型均本地运行，视频数据不会上传到任何服务器",
-            "• 推荐 NVIDIA GPU 8GB+ VRAM，首次运行需下载模型（约20-50GB）",
-            "• 生成速度取决于视频长度和分辨率，10秒 1080p 约需 5-15 分钟",
-            "• 支持中途暂停/继续，自动保存生成进度",
-        ]
-        for t in tips:
-            lbl = BodyLabel(t)
-            lbl.setStyleSheet("font-size: 11px; color: #999;")
-            lbl.setWordWrap(True)
-            tl.addWidget(lbl)
-
-        content_layout.addSpacing(16)
-        content_layout.addWidget(tip_card)
         content_layout.addStretch()
-
         scroll.setWidget(content)
         main_layout.addWidget(scroll)

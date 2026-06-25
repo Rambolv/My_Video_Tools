@@ -1,10 +1,10 @@
 ---
 name: vsr-dev-history
-description: "VSR魔改版全量开发历程、设计思维、架构演进与发布策略"
+description: "我的AI影音工具百宝箱全量开发历程、设计思维、架构演进与发布策略"
 applyTo: "**/*.{py,md,ps1,cmd}"
 ---
 
-# VSR魔改版 — 开发历程与设计思维
+# 我的AI影音工具百宝箱 — 开发历程与设计思维
 
 ## 一、项目概述
 

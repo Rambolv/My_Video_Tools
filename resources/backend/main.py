@@ -39,6 +39,34 @@ import time
 from tqdm import tqdm
 import numpy as np
 
+# ═══════════════════════════════════════════════════════════════
+# GPU 模型处理状态标记 — 仅模型加载时启用 GPU 让步
+# ═══════════════════════════════════════════════════════════════
+_gpu_yield_enabled = False  # 模型处理中 → True，其他时候 False
+_gpu_yield_next_check = 0.0
+_gpu_yield_interval = 10.0
+
+def _gpu_yield_if_busy():
+    """仅在模型处理中检测 GPU 过载并让步"""
+    global _gpu_yield_next_check, _gpu_yield_interval
+    if not _gpu_yield_enabled:
+        return
+    now = time.time()
+    if now < _gpu_yield_next_check:
+        return
+    # 用 torch.cuda.synchronize 耗时估算 GPU 繁忙程度
+    t0 = time.perf_counter()
+    if torch.cuda.is_available():
+        torch.cuda.synchronize()
+    elapsed = time.perf_counter() - t0
+    if elapsed > 0.01:  # sync 超过 10ms → GPU 队列深 → 繁忙
+        _gpu_yield_interval = max(0.5, _gpu_yield_interval * 0.7)
+        time.sleep(0.001)
+    else:
+        _gpu_yield_interval = min(10.0, _gpu_yield_interval * 1.5)
+    _gpu_yield_next_check = now + _gpu_yield_interval
+
+
 class SubtitleRemover:
     def __init__(self, vd_path, gui_mode=False):
         # 线程锁
@@ -164,6 +192,8 @@ class SubtitleRemover:
         self.progress_remover = int(current_percentage)
         self.progress_total = self.progress_remover
         self.notify_progress_listeners()
+        # GPU 检测式让步：检测 GPU 是否过载，仅在需要时让出时间片
+        _gpu_yield_if_busy()
 
     def append_output(self, *args):
         """输出信息到控制台
@@ -228,6 +258,8 @@ class SubtitleRemover:
                                                                           scene_div_points)
         del sub_detector
         gc.collect()        
+        global _gpu_yield_enabled
+        _gpu_yield_enabled = True
         self.append_output(tr['Main']['ProcessingStartRemovingSubtitles'])
         index = 0
         while True:
@@ -406,6 +438,8 @@ class SubtitleRemover:
         """
         使用sttn对选中区域进行重绘，不进行字幕检测
         """
+        global _gpu_yield_enabled
+        _gpu_yield_enabled = True
         self.append_output(tr['Main']['ProcessingStartRemovingSubtitles'])
         mask_area_coordinates = []
         for sub_area in self.sub_areas:
@@ -413,9 +447,19 @@ class SubtitleRemover:
             mask_area_coordinates.append((xmin, xmax, ymin, ymax))
         mask = self._create_enhanced_mask(mask_area_coordinates)
         sttn_video_inpaint = STTNAutoInpaint(self.hardware_accelerator.device, self.model_config.STTN_AUTO_MODEL_PATH, self.video_path)
-        sttn_video_inpaint(input_mask=mask, input_sub_remover=self, tbar=tbar)
+        try:
+            sttn_video_inpaint(input_mask=mask, input_sub_remover=self, tbar=tbar)
+        finally:
+            _gpu_yield_enabled = False
+            # 清理 STTN 本地实例
+            del sttn_video_inpaint
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
     def video_inpaint(self, tbar, model):
+        global _gpu_yield_enabled
+        _gpu_yield_enabled = True
         sub_detector = SubtitleDetect(self.video_path, self.sub_areas)
         sub_list = sub_detector.find_subtitle_frame_no(sub_remover=self)
         if len(sub_list) == 0:
@@ -1110,31 +1154,71 @@ class SubtitleRemover:
                         self.video_temp_file.name, self.video_out_path, str(e)))
             self.video_temp_file.close()
 
-    @cached_property
+        # ── 任务完成：卸载重绘模型，释放显存 ──
+        global _gpu_yield_enabled
+        _gpu_yield_enabled = False
+        try:
+            self.unload_inpaint_models()
+            self.append_output("✅ 重绘模型已卸载，显存已释放")
+        except Exception:
+            pass
+
+    # ─── 重绘模型缓存（延迟加载，支持主动卸载） ───
+    _lama_inpaint_cache = None
+    _sttn_det_inpaint_cache = None
+    _propainter_inpaint_cache = None
+    _e2fgvi_inpaint_cache = None
+
+    @property
     def lama_inpaint(self):
-        model_path = os.path.join(self.model_config.LAMA_MODEL_DIR, 'big-lama.pt')
-        device = self.hardware_accelerator.device if self.hardware_accelerator.has_cuda() or self.hardware_accelerator.has_mps() else torch.device("cpu")
-        return LamaInpaint(device, model_path)
+        if self._lama_inpaint_cache is None:
+            model_path = os.path.join(self.model_config.LAMA_MODEL_DIR, 'big-lama.pt')
+            device = self.hardware_accelerator.device if self.hardware_accelerator.has_cuda() or self.hardware_accelerator.has_mps() else torch.device("cpu")
+            self._lama_inpaint_cache = LamaInpaint(device, model_path)
+        return self._lama_inpaint_cache
 
-    @cached_property
+    @property
     def sttn_det_inpaint(self):
-        return STTNDetInpaint(self.hardware_accelerator.device, self.model_config.STTN_DET_MODEL_PATH)
+        if self._sttn_det_inpaint_cache is None:
+            self._sttn_det_inpaint_cache = STTNDetInpaint(self.hardware_accelerator.device, self.model_config.STTN_DET_MODEL_PATH)
+        return self._sttn_det_inpaint_cache
 
-    @cached_property
+    @property
     def propainter_inpaint(self):
-        device = self.hardware_accelerator.device if self.hardware_accelerator.has_cuda() else torch.device("cpu")
-        return PropainterInpaint(
-            device, self.model_config.PROPAINTER_MODEL_DIR,
-            config.propainterMaxLoadNum.value,
-            mask_dilation=config.propainterMaskDilates.value,
-            flow_mask_dilation=config.propainterFlowMaskDilates.value)
+        if self._propainter_inpaint_cache is None:
+            device = self.hardware_accelerator.device if self.hardware_accelerator.has_cuda() else torch.device("cpu")
+            self._propainter_inpaint_cache = PropainterInpaint(
+                device, self.model_config.PROPAINTER_MODEL_DIR,
+                config.propainterMaxLoadNum.value,
+                mask_dilation=config.propainterMaskDilates.value,
+                flow_mask_dilation=config.propainterFlowMaskDilates.value)
+        return self._propainter_inpaint_cache
 
-    @cached_property
+    @property
     def e2fgvi_inpaint(self):
-        device = self.hardware_accelerator.device if self.hardware_accelerator.has_cuda() else torch.device("cpu")
-        return E2FGVIInpaint(
-            device=device,
-            max_load_num=config.e2fgviMaxLoadNum.value)
+        if self._e2fgvi_inpaint_cache is None:
+            device = self.hardware_accelerator.device if self.hardware_accelerator.has_cuda() else torch.device("cpu")
+            self._e2fgvi_inpaint_cache = E2FGVIInpaint(
+                device=device,
+                max_load_num=config.e2fgviMaxLoadNum.value)
+        return self._e2fgvi_inpaint_cache
+
+    def unload_inpaint_models(self):
+        """主动卸载所有重绘模型，释放显存"""
+        import gc
+        for attr in ['_lama_inpaint_cache', '_sttn_det_inpaint_cache',
+                     '_propainter_inpaint_cache', '_e2fgvi_inpaint_cache']:
+            obj = getattr(self, attr, None)
+            if obj is not None:
+                if hasattr(obj, 'to'):
+                    try:
+                        obj.to('cpu')
+                    except Exception:
+                        pass
+                setattr(self, attr, None)
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
 
     @staticmethod
