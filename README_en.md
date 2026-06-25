@@ -1,4 +1,4 @@
-# VSR Modded Edition - Video Subtitle Remover  <!-- LVBOBO_markdown_BUG - 新增英文README -->
+# My AI Media Toolbox  <!-- LVBOBO_markdown_BUG -->
 
 ![Python](https://img.shields.io/badge/Python-3.12+-blue)
 ![PySide6](https://img.shields.io/badge/PySide6-6.9.0-green)
@@ -6,9 +6,9 @@
 
 [简体中文](README.md) | English
 
-> **VSR Modded Edition** — A deep fork of VSR v1.4.0 with extensive feature enhancements and UI refactoring.
-> Also integrates and enhances all features from the original author's VSE pre-built packages (`vse-windows-*.7z`).
-> GPU-accelerated hard-coded subtitle removal tool with both GUI and CLI interfaces.
+> **My AI Media Toolbox** — A deep fork of VSR v1.4.0, evolved into a comprehensive AI media toolkit.
+> Features: video subtitle/watermark removal, video enhancement (SR+FI), AI voice synthesis (VoxCPM2), AI music generation (ACE-Step 1.5), and more.
+> GPU-accelerated with both GUI and CLI interfaces.
 
 ---
 
@@ -126,8 +126,22 @@ It also integrates and enhances all features from the original author's VSE pre-
 | **Joint Proofreading** | Three OCR models combine for best results |
 | **Export Formats** | Plain text (.txt) / Standard subtitle (.srt) |
 
+### 🎵 AI Audio Studio (New)
+
+| Feature | Description |
+|---------|-------------|
+| **Voice TTS** | VoxCPM2 engine, multi-timbre text-to-speech, 48kHz output |
+| **Voice Cloning** | Clone any voice from reference audio |
+| **Voice Design** | Generate custom voices from text description |
+| **Voice Conversion** | Convert input audio to target timbre |
+| **Text-to-Music** | ACE-Step 1.5 engine, generate full songs from text |
+| **Lyrics-to-Song** | Generate music with vocals from lyrics |
+| **Source Separation** | Separate vocals/accompaniment/drums/bass/other |
+| **Cover/Continue/Repaint** | Intelligent music editing |
+
 ### 🖥 UI Features
 
+- **AI Navigation Pages** — AI Video Generation, AI Audio, Video Editor — three independent pages
 - **Draggable Splitter Panels** — All areas freely resizable
 - **Collapsible Sections** — Persistent state across restarts
 - **Help Button System** — `?` button on every control
@@ -148,7 +162,7 @@ Download `VSR-Source-v1.4.0.7z` from [Releases](https://github.com/Rambolv/My_Vi
 | 🚀 **Ultra Light** | Only 0.3MB — pure Python source code |
 | 🔧 **One-Click Setup** | Run `setup_windows.ps1` to configure everything automatically |
 | 📥 **Auto-Download** | Python runtime + pip dependencies + AI models (~700MB) all auto-downloaded |
-| 🎯 **Ready to Use** | After setup, double-click `启动VSR魔改版.cmd` to start |
+| 🎯 **Ready to Use** | After setup, double-click `启动我的AI影音工具百宝箱.cmd` to start |
 
 **Installation Steps:**
 
@@ -156,7 +170,7 @@ Download `VSR-Source-v1.4.0.7z` from [Releases](https://github.com/Rambolv/My_Vi
 # 1. Extract the downloaded .7z file
 # 2. Right-click scripts/setup_windows.ps1 → "Run with PowerShell"
 # 3. Wait for setup to complete (auto-downloads Python + deps + models)
-# 4. Double-click 「启动VSR魔改版.cmd」to launch
+# 4. Double-click 「启动我的AI影音工具百宝箱.cmd」to launch
 ```
 
 ### Run from Source (Manual)
@@ -364,27 +378,31 @@ Expand the "VRAM Estimation & Monitoring" collapsible section:
 
 ```
 resources/
-├── gui.py                  # GUI entry point
-├── backend/                # Backend logic
-│   ├── main.py             # Subtitle removal core
-│   ├── config.py           # Global configuration
-│   ├── inpaint/            # Inpainting algorithms
-│   │   ├── propainter/     # ProPainter
-│   │   ├── sttn_auto/      # STTN Auto
-│   │   └── ...
-│   └── tools/              # Utility modules
-│       ├── subtitle_detect.py    # Subtitle detection
-│       ├── subtitle_extractor.py # Subtitle extraction
-│       ├── vram_estimator.py     # VRAM estimation
-│       ├── vram_monitor.py       # VRAM monitoring
-│       └── ...
-├── ui/                     # UI modules
-│   ├── home_interface.py   # Home page
-│   ├── setting_interface.py # Settings panel
-│   ├── advanced_setting_interface.py # Advanced settings
-│   └── component/          # Reusable components
-├── config/                 # Configuration files
-└── models/                 # AI model files
+├── gui.py                     # GUI entry point
+├── backend/
+│   ├── main.py                # Subtitle removal core
+│   ├── config.py              # Global configuration
+│   ├── inpaint/               # Inpainting algorithms
+│   ├── tools/                 # Utility modules
+│   └── audio_studio/          # 🆕 AI Audio Studio
+│       ├── core/              # VoxCPM2 + ACE engine wrappers
+│       ├── webui/             # Gradio WebUI
+│       ├── config.py          # Audio config
+│       └── download_models.py # Model download tool
+├── ui/
+│   ├── home_interface.py      # Home page
+│   ├── audio_ai_page.py       # 🆕 AI Audio page
+│   ├── ai_video_generation_page.py # 🆕 AI Video Gen
+│   ├── video_editor_page.py   # 🆕 Video Editor
+│   └── component/
+├── config/
+└── models/
+
+vendor/                          # 🆕 Third-party AI projects
+└── ai_audio/
+    ├── voxcpm2/                 # VoxCPM2 voice synthesis
+    ├── ace_step/                # ACE-Step 1.5 music generation
+    └── models/                  # Shared model cache
 ```
 
 > For detailed technical documentation, see [docs/ARCHITECTURE_EN.md](docs/ARCHITECTURE_EN.md)

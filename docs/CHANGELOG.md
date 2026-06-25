@@ -1,10 +1,25 @@
-# VSR魔改版 变更日志  <!-- LVBOBO_markdown_BUG -->
+# 我的AI影音工具百宝箱 - 变更日志  <!-- LVBOBO_markdown_BUG -->
 
 [English](CHANGELOG_EN.md) | 简体中文
 
 ## v1.4.0 (当前版本)
 
 ### ✨ 新增功能
+
+- **AI 音频工作室 (audio_studio)**：集成 VoxCPM2 语音合成引擎和 ACE-Step 1.5 音乐生成引擎
+  - 语音合成 (TTS)、音色克隆、声音设计、声音转换
+  - 文生音乐、歌词生曲、续写、重绘、翻唱、音源分离、LoRA 训练
+  - 统一 Gradio WebUI 入口，支持一键启动
+- **GPU 检测式让步机制**：`_gpu_yield_if_busy()` — 基于 torch.cuda.synchronize() 耗时判断 GPU 繁忙度
+  - 仅在模型加载处理中启用，空闲时零开销
+  - 检测间隔自动调整：空闲 10s → 繁忙 0.5s
+- **VRAM 泄漏修复**：`@cached_property` 重绘模型改为 `@property` + 手动缓存，新增 `unload_inpaint_models()` 方法主动卸载
+- **模型下载工具**：`download_models.py` 支持 --mirror 参数（auto/huggingface/hf-mirror/modelscope）
+- **自动关机/退出**：任务完成后 5 秒倒计时自动关机或退出程序
+- **vendor 目录重构**：按 AI 领域划分 `ai_audio/`、`ai_video/`、`ai_video_edit/`
+- **路径内化**：所有外部 AI 项目路径迁移到 `vendor/ai_audio/` 下，不再依赖原始目录
+- **端口自动检测**：Gradio WebUI 端口冲突时自动递增
+- **配置持久化**：`user_config.json` 保存用户自定义路径设置
 
 - **视频增强系统**：超分辨率(Real-ESRGAN) + waifu2x 动漫超分 + 帧插值(RIFE) 三大增强模块
 - **增强管道串联**：超分→插帧 或 插帧→超分 两种处理顺序，支持任意组合

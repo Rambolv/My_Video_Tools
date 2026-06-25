@@ -1,10 +1,25 @@
-# VSR Modded Edition - Changelog  <!-- LVBOBO_markdown_BUG - 新增英文文档 -->
+# My AI Media Toolbox - Changelog  <!-- LVBOBO_markdown_BUG -->
 
 [简体中文](CHANGELOG.md) | English
 
 ## v1.4.0 (Current)
 
 ### ✨ New Features
+
+- **AI Audio Studio (audio_studio)**: Integrated VoxCPM2 voice engine and ACE-Step 1.5 music engine
+  - TTS, voice cloning, voice design, voice conversion
+  - Text-to-music, lyrics-to-song, continue, repaint, cover, source separation, LoRA training
+  - Unified Gradio WebUI with one-click launch
+- **Detection-based GPU Yield**: `_gpu_yield_if_busy()` — uses `torch.cuda.synchronize()` timing to gauge GPU load
+  - Only active during model processing, zero overhead when idle
+  - Adaptive check interval: idle 10s → busy 0.5s
+- **VRAM Leak Fix**: Changed `@cached_property` to `@property` + manual caching for inpaint models, added `unload_inpaint_models()`
+- **Model Download Tool**: `download_models.py` with `--mirror` support (auto/huggingface/hf-mirror/modelscope)
+- **Auto Shutdown/Exit**: 5-second countdown auto-shutdown or program exit after task completion
+- **Vendor Restructuring**: Reorganized by AI domain: `ai_audio/`, `ai_video/`, `ai_video_edit/`
+- **Path Internalization**: All external AI project paths moved to `vendor/ai_audio/`, no dependency on original directories
+- **Port Auto-Detection**: Gradio WebUI auto-increments on port conflict
+- **Config Persistence**: `user_config.json` saves user-customized path settings
 
 - **Video Enhancement System**: Super-Resolution (Real-ESRGAN) + waifu2x Anime SR + Frame Interpolation (RIFE)
 - **Enhancement Pipeline**: SR→FI or FI→SR processing order, any combination supported

@@ -1,4 +1,4 @@
-# VSR魔改版 - Video Subtitle Remover  <!-- LVBOBO_markdown_BUG -->
+# 我的AI影音工具百宝箱  <!-- LVBOBO_markdown_BUG -->
 
 ![Python](https://img.shields.io/badge/Python-3.12+-blue)
 ![PySide6](https://img.shields.io/badge/PySide6-6.9.0-green)
@@ -6,8 +6,9 @@
 
 [English](README_en.md) | 简体中文
 
-> **VSR魔改版** — 基于原版 VSR v1.4.0 深度二次开发，在原项目基础上进行了大量功能增强和 UI 重构。
-> 同时整合强化了原作者 VSE 预构建包的全部功能，支持 GPU 加速，提供图形化界面和命令行两种使用方式。
+> **我的AI影音工具百宝箱** — 基于 VSR v1.4.0 深度二次开发的全能影音工具箱。
+> 整合了视频字幕/水印去除、视频增强（超分+插帧）、AI 语音合成（VoxCPM2）、AI 音乐生成（ACE-Step 1.5）等丰富功能。
+> 支持 GPU 加速，提供图形化界面和命令行两种使用方式。
 
 ---
 
@@ -125,8 +126,22 @@
 | **联合校对** | 三个不同模型分别提取后合并择优 |
 | **格式导出** | 纯文本 (.txt) / 标准字幕 (.srt) |
 
+### 🎵 AI 音频工作室（新增）
+
+| 功能 | 说明 |
+|------|------|
+| **语音合成 (TTS)** | VoxCPM2 引擎，多音色文本转语音，48kHz 输出 |
+| **音色克隆** | 从参考音频克隆任意音色 |
+| **声音设计** | 文本描述生成定制声音 |
+| **声音转换** | 输入音频转换音色 |
+| **文生音乐** | ACE-Step 1.5 引擎，文本生成完整乐曲 |
+| **歌词生曲** | 输入歌词生成配乐演唱 |
+| **音源分离** | 分离人声/伴奏/鼓/贝斯/其他 |
+| **翻唱/续写/重绘** | 音乐智能编辑 |
+
 ### 🖥 UI 特性
 
+- **AI 功能导航页** — AI 视频生成、AI 音频、视频编辑器三个独立页面
 - **可拖拽分割面板** — 所有区域自由调整大小
 - **可折叠功能区** — 状态持久化，下次启动保持
 - **帮助按钮系统** — 每个控件旁 ? 按钮，点击/悬停查看说明
@@ -147,7 +162,7 @@
 | 🚀 **超小体积** | 仅 0.3MB，仅含 Python 源码 |
 | 🔧 **一键安装** | 运行 setup_windows.ps1 自动完成全部配置 |
 | 📥 **自动下载** | Python 环境 + pip 依赖 + AI 模型（~700MB）全自动下载 |
-| 🎯 **开箱即用** | 安装完成后双击「启动VSR魔改版.cmd」即可使用 |
+| 🎯 **开箱即用** | 安装完成后双击「启动我的AI影音工具百宝箱.cmd」即可使用 |
 
 **安装步骤：**
 
@@ -155,7 +170,7 @@
 # 1. 解压下载的 .7z 文件
 # 2. 右键 scripts/setup_windows.ps1 → 「使用 PowerShell 运行」
 # 3. 等待安装完成（Python 环境 + 依赖包 + AI 模型自动下载）
-# 4. 双击「启动VSR魔改版.cmd」开始使用
+# 4. 双击「启动我的AI影音工具百宝箱.cmd」开始使用
 ```
 
 ### 从源码手动运行
@@ -363,27 +378,31 @@ docker run -it --name vsr --gpus all eritpchy/video-subtitle-remover:1.4.0-cuda1
 
 ```
 resources/
-├── gui.py                  # GUI 主入口
-├── backend/                # 后端逻辑
-│   ├── main.py             # 字幕去除核心
-│   ├── config.py           # 全局配置
-│   ├── inpaint/            # 修复算法
-│   │   ├── propainter/     # ProPainter
-│   │   ├── sttn_auto/      # STTN 自动
-│   │   └── ...
-│   └── tools/              # 工具模块
-│       ├── subtitle_detect.py    # 字幕检测
-│       ├── subtitle_extractor.py # 字幕提取
-│       ├── vram_estimator.py     # VRAM 估算
-│       ├── vram_monitor.py       # VRAM 监控
-│       └── ...
-├── ui/                     # 界面模块
-│   ├── home_interface.py   # 主页
-│   ├── setting_interface.py # 设置面板
-│   ├── advanced_setting_interface.py # 高级设置
-│   └── component/          # 可复用组件
-├── config/                 # 配置文件
-└── models/                 # AI 模型文件
+├── gui.py                     # GUI 主入口
+├── backend/
+│   ├── main.py                # 字幕去除核心
+│   ├── config.py              # 全局配置
+│   ├── inpaint/               # 修复算法
+│   ├── tools/                 # 工具模块
+│   └── audio_studio/          # 🆕 AI 音频工作室
+│       ├── core/              # VoxCPM2 + ACE 引擎封装
+│       ├── webui/             # Gradio WebUI
+│       ├── config.py          # 音频配置
+│       └── download_models.py # 模型下载
+├── ui/
+│   ├── home_interface.py      # 主页
+│   ├── audio_ai_page.py       # 🆕 AI 音频页面
+│   ├── ai_video_generation_page.py # 🆕 AI 视频生成
+│   ├── video_editor_page.py   # 🆕 视频编辑器
+│   └── component/
+├── config/
+└── models/
+
+vendor/                          # 🆕 第三方 AI 项目
+└── ai_audio/
+    ├── voxcpm2/                 # VoxCPM2 语音合成
+    ├── ace_step/                # ACE-Step 1.5 音乐生成
+    └── models/                  # 共享模型缓存
 ```
 
 > 详细技术文档请见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
