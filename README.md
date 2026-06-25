@@ -427,8 +427,54 @@ A: 尝试切换提取模式（按行/按列/浮动），或更换检测模型（
 
 ---
 
-## 📄 许可证
+## 📄 许可与致谢
 
-本项目基于 [Apache License 2.0](resources/LICENSE) 开源。
+### 本项目许可证
+- **主程序**: [Apache License 2.0](resources/LICENSE)
+- **仓库地址**: https://github.com/Rambolv/My_Video_Tools
+
+### 参考与集成的第三方项目
+
+本项目在 VSR 基础上集成了多个优秀的开源 AI 项目，各自遵循其原始许可证：
+
+| 项目 | 说明 | 许可证 | 集成方式 |
+|------|------|--------|---------|
+| [YaoFANGUK/video-subtitle-remover](https://github.com/YaoFANGUK/video-subtitle-remover) | 原版 VSR v1.4.0，视频字幕去除基础框架 | Apache 2.0 | 本项目的原始基础 |
+| [OpenBMB/VoxCPM2](https://github.com/OpenBMB/VoxCPM2) | 语音合成引擎（TTS/音色克隆/声音设计） | MIT | `vendor/ai_audio/voxcpm2/` |
+| [ACE-Step/acestep-v15](https://github.com/ACE-Step/acestep-v15) | ACE-Step 1.5 音乐生成引擎 | Apache 2.0 | `vendor/ai_audio/ace_step/` |
+| [xinntao/Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN) | 通用超分辨率算法 | BSD 3-Clause | pip 包 `realesrgan` |
+| [waifu2x-ncnn-vulkan](https://github.com/nihui/waifu2x-ncnn-vulkan) | 动漫超分辨率 ncnn 后端 | MIT | `resources/backend/tools/waifu2x_ncnn_backend.py` |
+| [rife-ncnn-vulkan](https://github.com/nihui/rife-ncnn-vulkan) | RIFE 帧插值 ncnn 后端 | MIT | `resources/backend/tools/rife_ncnn_backend.py` |
+| [PaddlePaddle/PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) | OCR 文本检测与识别 | Apache 2.0 | pip 包 `paddleocr` |
+| [facebookresearch/sam2](https://github.com/facebookresearch/sam2) | SAM2 分割模型 | Apache 2.0 | pip 包 `sam2` |
+| [ProPainter](https://github.com/sczhou/ProPainter) | 视频修复算法（光流传播） | MIT | `resources/backend/inpaint/propainter_inpaint.py` |
+| [STTN](https://github.com/researchmm/STTN) | 时序修复 Transformer | MIT | `resources/backend/inpaint/sttn_*_inpaint.py` |
+| [E2FGVI](https://github.com/MCG-NKU/E2FGVI) | 高质量时序修复（CVPR 2022） | MIT | `resources/backend/inpaint/e2fgvi_inpaint.py` |
+| [LaMa](https://github.com/advimman/lama) | 图像修复（大遮罩修复） | Apache 2.0 | `resources/backend/inpaint/lama_inpaint.py` |
+| [qfluentwidgets](https://github.com/zhiyiYo/PyQt-Fluent-Widgets) | Fluent Design UI 组件库 | Apache 2.0 | pip 包 `qfluentwidgets` |
+
+### 功能特性概览
+
+| 模块 | 功能 | 说明 |
+|------|------|------|
+| **视频去字幕水印** | 6 种修复算法 | STTN、ProPainter、E2FGVI、LaMa、OpenCV |
+| | 8 种检测模型 | PP-OCRv4/v5 Server/Mobile、SAM2 Tiny/Small/Base/Large |
+| | 处理深度滑块 | 0-100 连续调节，实时插值所有模型参数 |
+| | 多循环暴力扫除 | 针对 AI 变形水印的多轮渐进清除 |
+| | 水印模板匹配 | 截取/旋转缩放匹配/颜色传播/强力清扫 |
+| | 并发处理 | 1-8 任务并行，智能 VRAM 标红预警 |
+| **视频增强** | Real-ESRGAN 超分 | Python CUDA / ncnn 双后端，4 种模型 |
+| | waifu2x 动漫超分 | ncnn-Vulkan 后端，cunet / upconv_anime |
+| | RIFE 帧插值 | Python CUDA / ncnn 双后端，2x/3x/4x/8x |
+| | 组合管道 | 超分→插帧 或 插帧→超分，任意串联 |
+| **AI 音频工作室** | VoxCPM2 语音引擎 | TTS、音色克隆、声音设计、声音转换（48kHz） |
+| | ACE-Step 1.5 音乐引擎 | 文生音乐、歌词生曲、续写/重绘/翻唱、音源分离、LoRA |
+| | 统一 Gradio WebUI | 端口自检、路径可配置、中文帮助系统 |
+| **智能资源管理** | VRAM 监控 | 被动采集+主动调度，颜色编码预警（红/橙/黄/绿） |
+| | GPU 检测式让步 | 基于 `torch.cuda.synchronize()` 智能检测，仅模型处理时生效 |
+| | 模型主动卸载 | 任务完成后自动 `unload_inpaint_models()` 释放显存 |
+| | AI 音频模型 ~14GB | 下载脚本支持国内镜像（hf-mirror.com / ModelScope） |
+
+---
 
 **原项目**: [YaoFANGUK/video-subtitle-remover](https://github.com/YaoFANGUK/video-subtitle-remover)

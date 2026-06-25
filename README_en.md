@@ -428,8 +428,54 @@ A: Try switching extraction modes (Row/Column/Float), or change detection model 
 
 ---
 
-## 📄 License
+## 📄 License & Credits
 
-This project is open-sourced under the [Apache License 2.0](resources/LICENSE).
+### Project License
+- **Main Program**: [Apache License 2.0](resources/LICENSE)
+- **Repository**: https://github.com/Rambolv/My_Video_Tools
+
+### Third-Party Projects
+
+This project builds upon VSR and integrates several excellent open-source AI projects, each under its original license:
+
+| Project | Description | License | Integration |
+|---------|-------------|---------|-------------|
+| [YaoFANGUK/video-subtitle-remover](https://github.com/YaoFANGUK/video-subtitle-remover) | Original VSR v1.4.0, video subtitle removal framework | Apache 2.0 | Base of this project |
+| [OpenBMB/VoxCPM2](https://github.com/OpenBMB/VoxCPM2) | Voice synthesis engine (TTS/clone/design/convert) | MIT | `vendor/ai_audio/voxcpm2/` |
+| [ACE-Step/acestep-v15](https://github.com/ACE-Step/acestep-v15) | Music generation engine (text-to-music/cover/separation) | Apache 2.0 | `vendor/ai_audio/ace_step/` |
+| [xinntao/Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN) | General super-resolution | BSD 3-Clause | pip `realesrgan` |
+| [waifu2x-ncnn-vulkan](https://github.com/nihui/waifu2x-ncnn-vulkan) | Anime SR ncnn backend | MIT | `tools/waifu2x_ncnn_backend.py` |
+| [rife-ncnn-vulkan](https://github.com/nihui/rife-ncnn-vulkan) | RIFE frame interpolation ncnn backend | MIT | `tools/rife_ncnn_backend.py` |
+| [PaddlePaddle/PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) | OCR text detection & recognition | Apache 2.0 | pip `paddleocr` |
+| [facebookresearch/sam2](https://github.com/facebookresearch/sam2) | SAM2 segmentation model | Apache 2.0 | pip `sam2` |
+| [ProPainter](https://github.com/sczhou/ProPainter) | Video inpainting (optical flow propagation) | MIT | `inpaint/propainter_inpaint.py` |
+| [STTN](https://github.com/researchmm/STTN) | Temporal inpainting Transformer | MIT | `inpaint/sttn_*_inpaint.py` |
+| [E2FGVI](https://github.com/MCG-NKU/E2FGVI) | High-quality temporal inpainting (CVPR 2022) | MIT | `inpaint/e2fgvi_inpaint.py` |
+| [LaMa](https://github.com/advimman/lama) | Image inpainting (large mask) | Apache 2.0 | `inpaint/lama_inpaint.py` |
+| [qfluentwidgets](https://github.com/zhiyiYo/PyQt-Fluent-Widgets) | Fluent Design UI component library | Apache 2.0 | pip `qfluentwidgets` |
+
+### Feature Summary
+
+| Module | Feature | Description |
+|--------|---------|-------------|
+| **Video Subtitle Removal** | 6 inpaint engines | STTN, ProPainter, E2FGVI, LaMa, OpenCV |
+| | 8 detection models | PP-OCRv4/v5 Server/Mobile, SAM2 Tiny/Small/Base/Large |
+| | Processing Depth slider | 0-100 continuous, real-time parameter interpolation |
+| | Multi-Sweep mode | Multi-pass progressive removal for AI watermarks |
+| | Watermark template matching | Capture/rotate-scale match/color propagation/power sweep |
+| | Concurrent processing | 1-8 parallel tasks, intelligent VRAM red-flag |
+| **Video Enhancement** | Real-ESRGAN SR | Python CUDA / ncnn dual backend, 4 models |
+| | waifu2x Anime SR | ncnn-Vulkan backend, cunet / upconv_anime |
+| | RIFE Frame Interpolation | Python CUDA / ncnn dual backend, 2x/3x/4x/8x |
+| | Combined pipeline | SR→FI or FI→SR, any order |
+| **AI Audio Studio** | VoxCPM2 Voice Engine | TTS, voice cloning, voice design, voice conversion (48kHz) |
+| | ACE-Step 1.5 Music Engine | Text-to-music, lyrics-to-song, continue/repaint/cover, separation, LoRA |
+| | Unified Gradio WebUI | Port auto-detection, configurable paths, Chinese help system |
+| **Smart Resource Mgmt** | VRAM Monitoring | Passive collection + active scheduling, color-coded alerts |
+| | Detection-based GPU Yield | `torch.cuda.synchronize()` smart detection, only during model processing |
+| | Model Auto-Unload | `unload_inpaint_models()` releases VRAM after task completion |
+| | AI Audio Models ~14GB | Download script supports mirrors (hf-mirror.com / ModelScope) |
+
+---
 
 **Original Project**: [YaoFANGUK/video-subtitle-remover](https://github.com/YaoFANGUK/video-subtitle-remover)
