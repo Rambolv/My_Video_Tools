@@ -48,6 +48,15 @@ wechat_*.jpg
 .claude/settings.local.json
 resources/config/config.json
 
+# AI model weights (download separately via setup_windows.ps1 / download_models.py)
+vendor/ai_audio/models/
+vendor/ai_audio/voxcpm2/models/
+vendor/ai_audio/ace_step/checkpoints/
+resources/backend/audio_studio/ace_checkpoints/
+resources/_processing/
+.cache/
+resources/vsr_config.json
+
 # Models (large binary files)
 resources/backend/models/
 resources/backend/E2FGVI/

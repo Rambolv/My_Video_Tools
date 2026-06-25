@@ -1,8 +1,8 @@
-# VSR Modded Edition - Quick Start Guide  <!-- LVBOBO_markdown_BUG -->
+# My AI Media Toolbox - Quick Start Guide  <!-- LVBOBO_markdown_BUG -->
 
 [简体中文](QUICK_START.md) | English
 
-> VSR Modded Edition — AI-powered hard subtitle & watermark removal tool
+> My AI Media Toolbox — AI-powered comprehensive media processing toolkit
 
 ## 📥 Step 1: Download
 

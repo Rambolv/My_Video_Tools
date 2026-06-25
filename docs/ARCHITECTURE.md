@@ -1,10 +1,10 @@
-# VSR魔改版 - 技术架构文档  <!-- LVBOBO_markdown_BUG -->
+# 我的AI影音工具百宝箱 - 技术架构文档  <!-- LVBOBO_markdown_BUG -->
 
 [English](ARCHITECTURE_EN.md) | 简体中文
 
 ## 1. 项目概述
 
-**VSR (Video Subtitle Remover)** 是一款基于 AI 的视频硬字幕去除工具，支持 GPU 加速，
+**我的AI影音工具百宝箱**（基于 VSR v1.4.0）是一款基于 AI 的全能影音处理工具箱，支持 GPU 加速，
 提供图形化界面（PySide6 + qfluentwidgets）和命令行两种使用方式。
 
 - **版本**: 1.4.0
@@ -311,12 +311,85 @@ FluentWindow (gui.py)
 | qfluentwidgets | 1.7.7 | Fluent Design 组件 |
 | PaddleOCR | 2.10.0 | OCR 检测与识别 |
 | paddlepaddle | 3.0.0 | 深度学习框架 |
-| PyTorch | 2.7.0 | 深度学习框架 (修复模型) |
+| PyTorch | 2.7.0 | 深度学习框架 (修复/VoxCPM2/ACE) |
+| torchaudio | 2.7.0 | 音频处理 (VoxCPM2/ACE) |
 | OpenCV | 4.11.0 | 视频处理/图像处理 |
 | FFmpeg | (系统) | 视频编码/解码/封装 |
 | ONNX Runtime | 1.20.1 | 模型推理加速 |
+| Gradio | 6.19.0 | 🆕 AI 音频 WebUI 框架 |
+| huggingface_hub | 1.20.1 | 🆕 模型下载 (VoxCPM2/ACE) |
 
 ---
+
+## 9. AI 音频工作室架构 (Post-v1.4.0)
+
+### 9.1 架构概览
+
+```
+VSR 主界面 (PySide6)
+  └── AI 音频导航页 (audio_ai_page.py)
+        ├── 启动 VoxCPM2 WebUI ──→ launch_voxcpm.py
+        │                           └── VoxCPM2Engine (voice_engine.py)
+        │                               ├── VoxCPM2 TTS 管道
+        │                               ├── 音色克隆
+        │                               ├── 声音设计
+        │                               └── 声音转换
+        │
+        ├── 启动 ACE-Step WebUI ──→ launch_ace.py
+        │                           └── AceStepEngine (music_engine.py)
+        │                               ├── 文生音乐 / 歌词生曲
+        │                               ├── 续写 / 重绘 / 翻唱
+        │                               ├── 音源分离
+        │                               └── LoRA 训练
+        │
+        └── 统一 Gradio WebUI ──→ webui/app.py
+                                    ├── 🎤 语音合成 Tab
+                                    ├── 🎵 音乐生成 Tab
+                                    ├── 🛠 工具 Tab
+                                    ╰── ⚙️ 路径设置 Tab
+```
+
+### 9.2 目录布局
+
+```
+resources/backend/audio_studio/
+├── __init__.py              # 包入口
+├── config.py                # 音频配置 (AudioStudioConfig)
+├── user_config.json         # 用户自定义路径持久化
+├── core/
+│   ├── voice_engine.py      # VoxCPM2Engine
+│   └── music_engine.py      # AceStepEngine
+├── webui/
+│   ├── app.py               # 统一 Gradio 入口
+│   ├── voice_tab.py         # 语音 Tab
+│   ├── music_tab.py         # 音乐 Tab
+│   └── tools_tab.py         # 工具 Tab
+├── launch_voxcpm.py         # VoxCPM2 独立启动
+├── launch_ace.py            # ACE-Step 独立启动
+├── download_models.py       # 模型下载 (支持镜像)
+├── test_integration.py      # 集成测试 (41/41 ✅)
+
+vendor/ai_audio/
+├── voxcpm2/                 # VoxCPM2 语音引擎
+├── ace_step/                # ACE-Step 1.5 音乐引擎
+└── models/hub/              # HF 共享模型缓存
+```
+
+### 9.3 线程安全
+
+所有引擎生成方法使用 `threading.Lock()`（`_gen_lock`）防止并发 CUDA 访问冲突。
+
+### 9.4 路径内化
+
+所有外部路径通过 `AudioStudioConfig.__post_init__()` 自动计算并设置为 `vendor/ai_audio/` 下的相对路径，`HF_HOME` 指向共享模型缓存。
+
+### 9.5 GPU 让步 (Detection-based)
+
+```
+_gpu_yield_if_busy() — 仅在 _gpu_yield_enabled=True 时激活
+  ├── torch.cuda.synchronize() 耗时 < 1ms → 检测间隔 10s
+  └── sync 耗时 > 10ms → 检测间隔 0.5s, sleep(0.001)
+```
 
 ## 8. 并发模型
 

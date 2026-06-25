@@ -1,10 +1,10 @@
-# VSR Modded Edition - Architecture  <!-- LVBOBO_markdown_BUG - 新增英文文档 -->
+# My AI Media Toolbox - Architecture  <!-- LVBOBO_markdown_BUG -->
 
 [简体中文](ARCHITECTURE.md) | English
 
 ## 1. Project Overview
 
-**VSR (Video Subtitle Remover)** is an AI-powered video hard subtitle removal tool with GPU acceleration, supporting both GUI (PySide6 + qfluentwidgets) and command-line interfaces.
+**My AI Media Toolbox** (based on VSR v1.4.0) is an AI-powered media processing toolkit with GPU acceleration, supporting both GUI (PySide6 + qfluentwidgets) and command-line interfaces.
 
 - **Version**: 1.4.0
 - **License**: Apache 2.0
@@ -309,10 +309,13 @@ Based on `qfluentwidgets.qconfig`, config file at `config/config.json`.
 | qfluentwidgets | 1.7.7 | Fluent Design components |
 | PaddleOCR | 2.10.0 | OCR detection & recognition |
 | paddlepaddle | 3.0.0 | Deep learning framework |
-| PyTorch | 2.7.0 | Deep learning framework (inpainting) |
+| PyTorch | 2.7.0 | Deep learning framework (inpaint/VoxCPM2/ACE) |
+| torchaudio | 2.7.0 | Audio processing (VoxCPM2/ACE) |
 | OpenCV | 4.11.0 | Video/image processing |
 | FFmpeg | (system) | Video encode/decode/mux |
 | ONNX Runtime | 1.20.1 | Model inference acceleration |
+| Gradio | 6.19.0 | 🆕 AI Audio WebUI framework |
+| huggingface_hub | 1.20.1 | 🆕 Model download (VoxCPM2/ACE) |
 
 ---
 
@@ -333,3 +336,75 @@ Based on `qfluentwidgets.qconfig`, config file at `config/config.json`.
 2. **Add new detection model**: Add to `SubtitleDetectMode` enum → add model path in `ModelConfig` → implement detection logic
 3. **Add new subtitle extraction mode**: Add branch in `_merge_by_mode()` → add option in UI combo box
 4. **Add new UI page**: Create sub-interface in `gui.py` → add to navigation via `addSubInterface()`
+
+---
+
+## 10. AI Audio Studio Architecture (Post-v1.4.0)
+
+### 10.1 Overview
+
+```
+VSR Main UI (PySide6)
+  └── AI Audio Nav Page (audio_ai_page.py)
+        ├── Launch VoxCPM2 WebUI ──→ launch_voxcpm.py
+        │                            └── VoxCPM2Engine (voice_engine.py)
+        │                                ├── TTS Pipeline
+        │                                ├── Voice Clone
+        │                                ├── Voice Design
+        │                                └── Voice Conversion
+        │
+        ├── Launch ACE-Step WebUI ──→ launch_ace.py
+        │                            └── AceStepEngine (music_engine.py)
+        │                                ├── Text-to-Music / Lyrics-to-Song
+        │                                ├── Continue / Repaint / Cover
+        │                                ├── Source Separation
+        │                                └── LoRA Training
+        │
+        └── Unified Gradio WebUI ──→ webui/app.py
+                                     ├── 🎤 Voice Tab
+                                     ├── 🎵 Music Tab
+                                     ├── 🛠 Tools Tab
+                                     ╰── ⚙️ Path Settings Tab
+```
+
+### 10.2 Directory Layout
+
+```
+resources/backend/audio_studio/
+├── __init__.py
+├── config.py                # AudioStudioConfig
+├── user_config.json         # User path persistence
+├── core/
+│   ├── voice_engine.py      # VoxCPM2Engine
+│   └── music_engine.py      # AceStepEngine
+├── webui/
+│   ├── app.py               # Unified Gradio entry
+│   ├── voice_tab.py
+│   ├── music_tab.py
+│   └── tools_tab.py
+├── launch_voxcpm.py
+├── launch_ace.py
+├── download_models.py       # Mirror-support model download
+└── test_integration.py      # 41/41 tests ✅
+
+vendor/ai_audio/
+├── voxcpm2/                 # VoxCPM2 voice engine
+├── ace_step/                # ACE-Step 1.5 music engine
+└── models/hub/              # Shared HF model cache
+```
+
+### 10.3 Thread Safety
+
+All engine generation methods use `threading.Lock()` (`_gen_lock`) to prevent concurrent CUDA access.
+
+### 10.4 Path Internalization
+
+All external paths auto-computed to `vendor/ai_audio/` via `AudioStudioConfig.__post_init__()`, `HF_HOME` points to shared model cache.
+
+### 10.5 Detection-based GPU Yield
+
+```
+_gpu_yield_if_busy() — active only when _gpu_yield_enabled=True
+  ├── torch.cuda.synchronize() < 1ms → interval 10s
+  └── sync > 10ms → interval 0.5s, sleep(0.001)
+```

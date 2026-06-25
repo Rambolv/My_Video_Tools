@@ -1,6 +1,6 @@
-# VSR魔改版 — 设计思维脑图与开发历程总结
+# 我的AI影音工具百宝箱 — 设计思维脑图与开发历程总结
 
-> 本文档记录 VSR魔改版 从原版 v1.4.0 到当前版本的全部功能演进、设计决策和技术方案。
+> 本文档记录 我的AI影音工具百宝箱 从 VSR v1.4.0 到当前版本的全部功能演进、设计决策和技术方案。
 
 ---
 
@@ -8,7 +8,7 @@
 
 ```mermaid
 mindmap
-  root((VSR魔改版))
+  root((我的AI影音工具百宝箱))
     核心算法增强
       处理深度滑块
         0-100连续调节
@@ -140,7 +140,7 @@ mindmap
 ## 五、数据统计
 
 ```
-                   原版 v1.4.0    VSR魔改版 v1.4.0
+                   原版 v1.4.0    我的AI影音工具百宝箱 v1.4.0
 GUI框架            PySimpleGUI    PySide6+qfluentwidgets
 修复算法              3种            6种
 检测模型              4种            8种
@@ -210,9 +210,62 @@ ncnn后端              无             3个(SR/RIFE/waifu2x)
 - **主题监听** (`theme_listener.py`)：系统主题实时切换
 - **视频合并** (`merge_video.py`)：多片段合并
 
+## 八、AI 音频工作室（2026-06-24 ~ 2026-06-25）
+
+### 8.1 VoxCPM2 语音引擎集成
+- **核心功能**：TTS 语音合成、音色克隆、声音设计、声音转换
+- **技术栈**：AudioVAE V2 + LocEnc → TSLM → RALM → LocDiT，48kHz 输出
+- **架构**：`VoxCPM2Engine` 封装在 `audio_studio/core/voice_engine.py`
+- **线程安全**：`threading.Lock()` 防止并发 CUDA 访问冲突
+- **模型加载**：直接本地路径加载，绕过 HF snapshot_download 缓存问题
+
+### 8.2 ACE-Step 1.5 音乐引擎集成
+- **核心功能**：文生音乐、歌词生曲、续写、重绘、翻唱、音源分离、LoRA 训练
+- **技术栈**：LM 规划器 (CoT) + DiT 扩散，4-step turbo
+- **架构**：`AceStepEngine` 封装在 `audio_studio/core/music_engine.py`
+- **总模型**：~9.6GB（DiT 4.5GB + LM 3.5GB + VAE 322MB + TextEnc 1.1GB）
+
+### 8.3 Gradio WebUI
+- **统一入口**：`webui/app.py` 包含语音/音乐/工具/路径设置四个 Tab
+- **独立启动**：`launch_voxcpm.py` / `launch_ace.py` 支持单独运行
+- **端口自动检测**：冲突时自动递增到可用端口
+- **路径配置**：`user_config.json` 持久化用户自定义路径
+
+### 8.4 架构决策
+- **vendor 目录重构**：按 AI 领域 `ai_audio/` / `ai_video/` / `ai_video_edit/` 划分
+- **路径内化**：所有外部路径迁移至 `vendor/ai_audio/`，`HF_HOME` 指向共享模型缓存
+- **镜像支持**：`download_models.py` 支持 HF 镜像(hf-mirror.com)和 ModelScope
+- **集成测试**：41/41 测试通过，覆盖导入、实例化、UI 创建、模型权重、路径完整性
+
+### 8.5 解决问题记录
+| 问题 | 根因 | 解决方案 |
+|------|------|---------|
+| Gradio 6.x 移除 prevent_thread_from_blocking | API 变更 | 移除该参数 |
+| torchaudio DLL 加载失败 | 用户 site-packages 冲突 | PYTHONNOUSERSITE=1 |
+| VoxCPM2 不存在 resolve_runtime_device | API 名称错误 | 修改为正确 API |
+| ACE-Step Gradio 6 滑块异常 | min=max=0 配置问题 | 修复默认值 |
+| SSL 证书验证失败 | QPT Python 捆绑问题 | verify=False, local_files_only=True |
+| 并发生成 CUDA invalid argument | 同时访问 GPU | threading.Lock 序列化 |
+| VRAM 泄漏 | @cached_property 不释放 | 改为 @property + unload_inpaint_models() |
+
+## 九、GPU 检测式让步（2026-06-25）
+
+### 9.1 背景
+字幕去除过程中 ProPainter/STTN 持续饱和 GPU 计算资源（VRAM 不到 50% 但 GPU 3D 100%），导致 Windows DWM 线程饥饿，桌面严重卡顿。
+
+### 9.2 方案演进
+1. ❌ 硬性 sleep(1) — 用户要求「不要做硬性修改」
+2. ✅ 检测式让步 — 用 `torch.cuda.synchronize()` 耗时估算 GPU 繁忙度
+
+### 9.3 最终实现
+- `_gpu_yield_enabled` 全局标记，**仅模型加载处理中**为 True
+- `_gpu_yield_if_busy()` 利用 `torch.cuda.synchronize()` 耗时判断
+- 空闲 > 5s → 间隔 10s，繁忙 > 10ms → 间隔 0.5s + 让步 1ms
+- 处理完成 → `_gpu_yield_enabled = False` + `unload_inpaint_models()` + `gc.collect()` + `torch.cuda.empty_cache()`
+
 ---
 
-## 八、相关文档索引
+## 十、相关文档索引
 
 | 文档 | 说明 |
 |------|------|
@@ -227,4 +280,4 @@ ncnn后端              无             3个(SR/RIFE/waifu2x)
 
 ---
 
-*本文档最后更新: 2026-06-24*
+*本文档最后更新: 2026-06-26*

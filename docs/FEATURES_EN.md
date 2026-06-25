@@ -1,4 +1,4 @@
-# VSR Modded Edition - Feature Design  <!-- LVBOBO_markdown_BUG - 新增英文文档 -->
+# My AI Media Toolbox - Feature Design  <!-- LVBOBO_markdown_BUG -->
 
 [简体中文](FEATURES.md) | English
 
@@ -225,7 +225,7 @@ Overflow check = total > GPU VRAM × 0.90 (10% headroom)
 
 ### 7.1 Overview
 
-This module is a newly added video quality enhancement feature for the VSR Modded Edition, containing **Super-Resolution (SR)** and **Frame Interpolation (FI)** sub-modules, which can be used separately or in combination (SR first, then FI).
+This module is a video quality enhancement feature for My AI Media Toolbox, containing **Super-Resolution (SR)** and **Frame Interpolation (FI)** sub-modules, which can be used separately or in combination (SR first, then FI).
 
 ### 7.2 Super-Resolution (Real-ESRGAN)
 
@@ -385,3 +385,113 @@ The pipeline is chained by `VideoSuperResolution` and `VideoFrameInterpolation` 
 | `fiBackend` | `python` | FI backend: `python` / `ncnn` |
 | `fiMultiplier` | 2 | FI multiplier (2/3/4/8) |
 | `fiNcnnThreads` | `1:2:2` | ncnn thread config (process:scale:denoise) |
+
+---
+
+## 9. AI Audio Studio (Post-v1.4.0)
+
+### 9.1 Overview
+
+Integrates VoxCPM2 (voice synthesis) and ACE-Step 1.5 (music generation) AI engines with a unified Gradio WebUI.
+
+### 9.2 VoxCPM2 Voice Engine
+
+| Feature | Description |
+|---------|-------------|
+| **TTS** | Text-to-speech with multiple preset timbres |
+| **Clone Voice** | Clone a voice from reference audio |
+| **Design Voice** | Generate custom voices from text description |
+| **Convert Voice** | Convert input audio to target timbre |
+
+**Technical Details**:
+- **Architecture**: AudioVAE V2 + LocEnc → TSLM → RALM → LocDiT
+- **Output**: 48kHz sample rate
+- **Model Weights**: ~4.7GB
+- **Hardware**: RTX 4090 24GB compatible
+
+### 9.3 ACE-Step 1.5 Music Engine
+
+| Feature | Description |
+|---------|-------------|
+| **Text to Music** | Generate full songs from text description |
+| **Lyrics to Song** | Generate music with vocals from lyrics |
+| **Continue** | Extend music from a specified time point |
+| **Repaint** | Replace music content in a specified time range |
+| **Cover Song** | Generate a cover version from input audio + lyrics |
+| **Source Separation** | Separate vocals/accompaniment/drums/bass/other |
+| **LoRA Training** | Fine-tune custom timbre styles |
+
+**Technical Details**:
+- **Architecture**: LM Planner (CoT) + DiT Diffusion
+- **Turbo Mode**: 4-step fast generation
+- **Total Model Weights**: ~9.6GB (DiT 4.5GB + LM 3.5GB + VAE 322MB + TextEnc 1.1GB)
+
+### 9.4 Directory Layout
+
+```
+vendor/ai_audio/
+├── voxcpm2/                     # VoxCPM2 source
+│   └── voxcpm/                  # Core package
+├── ace_step/                    # ACE-Step 1.5 source
+│   ├── acestep/                 # Core package
+│   └── checkpoints/             # ACE model weights
+└── models/
+    └── hub/                     # HF model cache (shared)
+```
+
+### 9.5 WebUI Features
+
+- **Unified Entry**: Launch from VSR main UI "AI Audio" page, or standalone via `launch_voxcpm.py` / `launch_ace.py`
+- **Port Auto-Detection**: Auto-increments on port conflict
+- **Path Settings**: Customizable output directory, persisted to `user_config.json`
+- **Chinese Help System**: ❓ accordion with detailed usage guides for each feature
+
+---
+
+## 10. Detection-based GPU Yield (Post-v1.4.0)
+
+### 10.1 Overview
+
+Solves desktop lag (DWM starvation) caused by sustained GPU saturation during subtitle removal. **No hard waits — intelligent detection with micro-yields**.
+
+### 10.2 How It Works
+
+```
+_gpu_yield_if_busy()  — called on each progress update
+                         │
+                    ┌────┴────┐
+                    │ Gate    │ ← _gpu_yield_enabled (only during model processing)
+                    └────┬────┘
+                         │
+                    ┌────┴────┐
+                    │ Timer   │ ← Adaptive check interval
+                    └────┬────┘
+                         │
+                    ┌────┴──────────────┐
+                    │ torch.cuda.synchronize() │ ← Timing estimates GPU busyness
+                    └────┬──────────────┘
+                         │
+              ┌──────────┴──────────┐
+              │                     │
+         sync < 1ms            sync > 10ms
+         (GPU idle)            (GPU busy)
+              │                     │
+        interval→10s           interval→0.5s
+                              sleep 1ms
+```
+
+### 10.3 Parameters
+
+| Parameter | Idle State | Busy State |
+|-----------|-----------|------------|
+| Check Interval | 10s (exponential growth) | 0.5s (exponential decay) |
+| sync threshold | < 1ms | > 10ms |
+| Yield action | None | `time.sleep(0.001)` |
+
+### 10.4 Lifecycle
+
+| Stage | `_gpu_yield_enabled` | Behavior |
+|-------|---------------------|----------|
+| Idle (no processing) | `False` | No detection, zero overhead |
+| Model loaded → processing | `True` | Check on each progress update |
+| Processing done → models unloaded | `False` | Reset to idle state |

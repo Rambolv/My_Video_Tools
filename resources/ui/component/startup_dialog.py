@@ -78,7 +78,7 @@ class StartupDialog(QtWidgets.QDialog):
             ("📖 项目来源", "基于 YaoFANGUK/video-subtitle-remover 深度二次开发"),
             ("� 原版项目", "https://github.com/YaoFANGUK/video-subtitle-remover"),
             ("📄 许可证", "Apache License 2.0"),
-            ("🔗 本仓库", "https://github.com/Rambolv/Video_Tools"),
+            ("🔗 本仓库", "https://github.com/Rambolv/My_Video_Tools"),
         ]
         for icon_text, value in info_lines:
             row = QtWidgets.QHBoxLayout()

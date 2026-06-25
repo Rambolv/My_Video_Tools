@@ -5,10 +5,10 @@
 
 .DESCRIPTION
     使用方式:
-        1. 下载 VSR-Source-v1.4.0.zip 并解压
+        1. 下载 AI-Media-Toolbox-Source-v1.4.0.7z 并解压
         2. 右键 setup_windows.ps1 -> "使用 PowerShell 运行"
         3. 等待安装完成
-        4. 双击「启动VSR魔改版.cmd」开始使用
+        4. 双击「启动我的AI影音工具百宝箱.cmd」开始使用
 #>
 
 $ErrorActionPreference = "Stop"
@@ -16,7 +16,7 @@ $ScriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $ScriptPath
 
 Write-Host "================================================" -ForegroundColor Cyan
-Write-Host "  VSR 魔改版 - Windows 一键安装" -ForegroundColor Cyan
+Write-Host "  我的AI影音工具百宝箱 - Windows 一键安装" -ForegroundColor Cyan
 Write-Host "================================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -26,7 +26,7 @@ $PythonDir = "$ScriptPath\Python"
 $RequirementsFile = "$ScriptPath\resources\requirements.txt"
 
 # ── 1. 检查/下载 Python ──
-Write-Host "[1/4] 检查 Python 运行环境..." -ForegroundColor Yellow
+Write-Host "[1/5] 检查 Python 运行环境..." -ForegroundColor Yellow
 $pythonExe = "$PythonDir\python.exe"
 
 if (-not (Test-Path $pythonExe)) {
@@ -47,7 +47,7 @@ if (-not (Test-Path $pythonExe)) {
 }
 
 # ── 2. 安装 pip 依赖 ──
-Write-Host "[2/4] 安装 Python 依赖包..." -ForegroundColor Yellow
+Write-Host "[2/5] 安装 Python 依赖包..." -ForegroundColor Yellow
 
 # 嵌入式 Python 需要先启用 pip
 $pythonLib = "$PythonDir\python312._pth"
@@ -79,19 +79,30 @@ if (Test-Path $RequirementsFile) {
     Write-Host "  [WARN] 未找到 requirements.txt" -ForegroundColor Yellow
 }
 
-# ── 3. 下载 AI 模型 ──
-Write-Host "[3/4] 下载 AI 模型（约 700MB）..." -ForegroundColor Yellow
+# ── 3. 下载基础 AI 模型（~700MB）──
+Write-Host "[3/5] 下载基础 AI 模型（字幕检测+修复，约 700MB）..." -ForegroundColor Yellow
 $downloadScript = "$ScriptPath\scripts\download_models.py"
 if (Test-Path $downloadScript) {
     & $pythonExe $downloadScript 2>&1 | ForEach-Object { Write-Host "     $_" }
-    Write-Host "  [OK] 模型下载完成" -ForegroundColor Green
+    Write-Host "  [OK] 基础模型下载完成" -ForegroundColor Green
 } else {
     Write-Host "  [WARN] 未找到模型下载脚本，请手动下载模型" -ForegroundColor Yellow
 }
 
-# ── 4. 创建启动脚本 ──
-Write-Host "[4/4] 创建启动快捷方式..." -ForegroundColor Yellow
-$launchScript = "$ScriptPath\启动VSR魔改版.cmd"
+# ── 4. 下载 AI 音频模型（VoxCPM2 + ACE-Step，~14GB）──
+Write-Host "[4/5] 下载 AI 音频模型（声音克隆+音乐生成，约 14GB）..." -ForegroundColor Yellow
+$audioDownloadScript = "$ScriptPath\resources\backend\audio_studio\download_models.py"
+if (Test-Path $audioDownloadScript) {
+    Write-Host "  -> 正在下载 VoxCPM2 和 ACE-Step 模型（首次下载较慢）..." -ForegroundColor Gray
+    & $pythonExe $audioDownloadScript --mirror auto 2>&1 | ForEach-Object { Write-Host "     $_" }
+    Write-Host "  [OK] AI 音频模型下载完成" -ForegroundColor Green
+} else {
+    Write-Host "  [WARN] 未找到音频模型下载脚本，可后续手动运行" -ForegroundColor Yellow
+}
+
+# ── 5. 创建启动脚本 ──
+Write-Host "[5/5] 创建启动快捷方式..." -ForegroundColor Yellow
+$launchScript = "$ScriptPath\启动我的AI影音工具百宝箱.cmd"
 @"
 @echo off
 chcp 65001 >nul
@@ -108,5 +119,11 @@ Write-Host "================================================" -ForegroundColor C
 Write-Host "  安装完成！" -ForegroundColor Green
 Write-Host "================================================" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "  双击「启动VSR魔改版.cmd」开始使用" -ForegroundColor White
+Write-Host "  双击「启动我的AI影音工具百宝箱.cmd」开始使用" -ForegroundColor White
+Write-Host ""
+Write-Host "  🎤 AI 音频功能：启动后点击底部「AI 音频」导航页" -ForegroundColor White
+Write-Host "     运行 launch_voxcpm.py 启动 VoxCPM2 语音合成 WebUI" -ForegroundColor White
+Write-Host "     运行 launch_ace.py 启动 ACE-Step 1.5 音乐生成 WebUI" -ForegroundColor White
+Write-Host ""
+Write-Host "  💡 模型镜像（国内用户）: python audio_studio/download_models.py --mirror hf-mirror" -ForegroundColor White
 Write-Host ""

@@ -8,12 +8,11 @@ import configparser
 
 # 项目版本号
 VERSION = "1.4.0"
-PROJECT_HOME_URL = "https://github.com/YaoFANGUK/video-subtitle-remover"
+PROJECT_HOME_URL = "https://github.com/Rambolv/My_Video_Tools"
 PROJECT_ISSUES_URL = PROJECT_HOME_URL + "/issues"
 PROJECT_RELEASES_URL = PROJECT_HOME_URL + "/releases"
 PROJECT_UPDATE_URLS = [
-    "https://api.github.com/repos/YaoFANGUK/video-subtitle-remover/releases/latest",
-    "https://accelerate.xdow.net/api/repos/YaoFANGUK/video-subtitle-remover/releases/latest",
+    "https://api.github.com/repos/Rambolv/My_Video_Tools/releases/latest",
 ] 
 
 # 硬件加速选项开关
@@ -253,6 +252,12 @@ class Config(QConfig):
     # ============ 启动弹窗 ============
     skipStartupDialog = ConfigItem("UI", "SkipStartupDialog", False, BoolValidator())
     startupDonateCount = ConfigItem("UI", "StartupDonateCount", 0, RangeValidator(0, 99))
+
+    # ============ 任务完成后自动操作 ============
+    # 任务执行完毕 5 秒后自动关机
+    autoShutdownAfterTask = ConfigItem("AutoTask", "AutoShutdown", False, BoolValidator())
+    # 任务执行完毕 5 秒后自动关闭程序
+    autoCloseProgramAfterTask = ConfigItem("AutoTask", "AutoCloseProgram", False, BoolValidator())
 
 CONFIG_FILE = 'config/config.json'
 config = Config()

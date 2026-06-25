@@ -1,8 +1,8 @@
-# VSR魔改版 一键使用指南  <!-- LVBOBO_markdown_BUG -->
+# 我的AI影音工具百宝箱 - 一键使用指南  <!-- LVBOBO_markdown_BUG -->
 
 [English](QUICK_START_EN.md) | 简体中文
 
-> VSR魔改版 — 基于 AI 的视频硬字幕/水印去除工具
+> 我的AI影音工具百宝箱 — 基于 AI 的全能影音处理工具箱
 
 ## 📥 第一步：下载
 

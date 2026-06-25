@@ -30,10 +30,16 @@ class VersionService:
             "https": proxy
         }
 
+        # 抑制 SSL 警告（QPT 打包的 Python SSL 证书验证有问题）
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
         # 依次尝试不同的API端点
         for url in self.api_endpoints:
             try:
-                response = requests.get(url, headers=headers, timeout=5, allow_redirects=True, proxies=proxies)
+                response = requests.get(url, headers=headers, timeout=5,
+                                       allow_redirects=True, proxies=proxies,
+                                       verify=False)
                 response.raise_for_status()
                 
                 # 解析版本
