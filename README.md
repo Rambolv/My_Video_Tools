@@ -155,7 +155,10 @@
 
 ### 📦 源码安装包（推荐，仅 0.3MB）
 
-从 [Releases](https://github.com/Rambolv/My_Video_Tools/releases) 下载 `VSR-Source-v1.4.0.7z`
+从 [Releases](https://github.com/Rambolv/My_Video_Tools/releases) 下载 `AI-Media-Toolbox-Source-v1.4.0.7z`
+
+**Windows 全量版（含运行环境 + 全部模型，解压即用）：**
+- ☁️ 百度网盘：[下载 MyvideoTools.rar](https://pan.baidu.com/s/1MEeQeiTiXTVd_Z5AMTKgdg?pwd=32as)（提取码: `32as`）
 
 | 特点 | 说明 |
 |------|------|

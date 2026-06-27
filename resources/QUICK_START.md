@@ -17,7 +17,7 @@
 | **没有独立显卡** | `vsr-windows-cpu.7z` |
 
 **下载地址：**
-- ☁️ Google Drive：[点此下载](https://drive.google.com/drive/folders/1NRgLNoHHOmdO4GxLhkPbHsYfMOB_3Elr?usp=sharing)
+- ☁️ 百度网盘：[下载 MyvideoTools.rar](https://pan.baidu.com/s/1MEeQeiTiXTVd_Z5AMTKgdg?pwd=32as)（提取码: `32as`）
 
 > 💡 不知道自己的显卡型号？按 `Win+R` 输入 `dxdiag`，在「显示」选项卡中查看。
 

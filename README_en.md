@@ -155,7 +155,10 @@ It also integrates and enhances all features from the original author's VSE pre-
 
 ### 📦 Source Package (Recommended, only 0.3MB)
 
-Download `VSR-Source-v1.4.0.7z` from [Releases](https://github.com/Rambolv/My_Video_Tools/releases)
+Download `AI-Media-Toolbox-Source-v1.4.0.7z` from [Releases](https://github.com/Rambolv/My_Video_Tools/releases)
+
+**Windows Full Package (with runtime + all models, extract & run):**
+- ☁️ Baidu Netdisk: [Download MyvideoTools.rar](https://pan.baidu.com/s/1MEeQeiTiXTVd_Z5AMTKgdg?pwd=32as) (Code: `32as`)
 
 | Feature | Description |
 |---------|-------------|

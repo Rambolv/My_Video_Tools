@@ -17,7 +17,7 @@
 | **No dedicated GPU** | `vsr-windows-cpu.7z` |
 
 **Download Links:**
-- ☁️ Google Drive: [Download](https://drive.google.com/drive/folders/1NRgLNoHHOmdO4GxLhkPbHsYfMOB_3Elr?usp=sharing)
+- ☁️ Baidu Netdisk: [Download MyvideoTools.rar](https://pan.baidu.com/s/1MEeQeiTiXTVd_Z5AMTKgdg?pwd=32as) (Code: `32as`)
 
 > 💡 Not sure which GPU you have? Press `Win+R`, type `dxdiag`, check the "Display" tab.
 
