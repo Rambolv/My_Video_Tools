@@ -169,11 +169,7 @@
 > 从 My Video Tools 剥离出的**字幕去除专用模块**，仅保留字幕去除 + 超分辨率 + 帧插值核心功能，去除音频AI等附属功能。
 | 平台 | 下载链接 |
 |------|---------|
-| Windows GPU (NVIDIA CUDA 12.6) | ☁️ [百度网盘](https://pan.baidu.com/s/1nRGo_lLvFSwDJTWmTdVo3w?pwd=dwrw) 提取码: `dwrw` |
-> ⚠️ 预编译包约 6.8GB（不含 Python 运行环境 + 含全部 AI 模型），解压即用。
-| 特点 | 说明 |
-|------|------|
-
+| Windows GPU (NVIDIA CUDA 12.6) | https://pan.baidu.com/s/1z3Zo-JzpuFXQGty8e8pELw?pwd=c6qq
 
 **安装步骤：**
 
