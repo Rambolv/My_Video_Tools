@@ -156,16 +156,24 @@
 ### 📦 源码安装包（推荐，仅 0.3MB）
 
 从 [Releases](https://github.com/Rambolv/My_Video_Tools/releases) 下载 `AI-Media-Toolbox-Source-v1.4.0.7z`
-
-**Windows 全量版（含运行环境 + 全部模型，解压即用）：**
-- ☁️ 百度网盘：[下载 MyvideoTools.rar](https://pan.baidu.com/s/1MEeQeiTiXTVd_Z5AMTKgdg?pwd=32as)（提取码: `32as`）
-
-| 特点 | 说明 |
-|------|------|
 | 🚀 **超小体积** | 仅 0.3MB，仅含 Python 源码 |
 | 🔧 **一键安装** | 运行 setup_windows.ps1 自动完成全部配置 |
 | 📥 **自动下载** | Python 环境 + pip 依赖 + AI 模型（~700MB）全自动下载 |
 | 🎯 **开箱即用** | 安装完成后双击「启动我的AI影音工具百宝箱.cmd」即可使用 |
+
+**Windows 全量版（含运行环境 + 全部模型，解压即用）：**
+- ☁️ 百度网盘：[下载 MyvideoTools.rar](https://pan.baidu.com/s/1MEeQeiTiXTVd_Z5AMTKgdg?pwd=32as)（提取码: `32as`）
+- 
+# VSR_PLUS 1.0 — 字幕去除器增强版
+
+> 从 My Video Tools 剥离出的**字幕去除专用模块**，仅保留字幕去除 + 超分辨率 + 帧插值核心功能，去除音频AI等附属功能。
+| 平台 | 下载链接 |
+|------|---------|
+| Windows GPU (NVIDIA CUDA 12.6) | ☁️ [百度网盘](https://pan.baidu.com/s/1nRGo_lLvFSwDJTWmTdVo3w?pwd=dwrw) 提取码: `dwrw` |
+> ⚠️ 预编译包约 6.8GB（不含 Python 运行环境 + 含全部 AI 模型），解压即用。
+| 特点 | 说明 |
+|------|------|
+
 
 **安装步骤：**
 
