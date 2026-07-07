@@ -167,43 +167,7 @@
 
 **安装步骤：**
 
-```powershell
-# 1. 解压下载的 .7z 文件
-# 2. 右键 scripts/setup_windows.ps1 → 「使用 PowerShell 运行」
-# 3. 等待安装完成（Python 环境 + 依赖包 + AI 模型自动下载）
-# 4. 双击「启动我的AI影音工具百宝箱.cmd」开始使用
-```
-
-### 从源码手动运行
-
-适用于已经有 Python 3.12+ 环境的用户：
-
-```bash
-# 1. 创建虚拟环境
-python -m venv venv
-# Windows
-venv\Scripts\activate
-
-# 2. 安装依赖
-pip install -r resources/requirements.txt
-
-# 3. 运行
-cd resources
-python gui.py
-```
-
-### Docker
-
-```bash
-# CUDA 11.8 (10/20/30 系显卡)
-docker run -it --name vsr --gpus all eritpchy/video-subtitle-remover:1.4.0-cuda11.8 \
-  python backend/main.py -i /input/video.mp4 -o /output/video_no_sub.mp4
-
-# CUDA 12.6 (40 系显卡)
-docker run -it --name vsr --gpus all eritpchy/video-subtitle-remover:1.4.0-cuda12.6 \
-  python backend/main.py -i /input/video.mp4 -o /output/video_no_sub.mp4
-```
-
+运行EXE程序
 ---
 
 ## 🖥 界面预览
