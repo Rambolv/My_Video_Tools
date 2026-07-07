@@ -153,13 +153,7 @@
 
 ## 🚀 快速开始
 
-### 📦 源码安装包（推荐，仅 0.3MB）
 
-从 [Releases](https://github.com/Rambolv/My_Video_Tools/releases) 下载 `AI-Media-Toolbox-Source-v1.4.0.7z`
-| 🚀 **超小体积** | 仅 0.3MB，仅含 Python 源码 |
-| 🔧 **一键安装** | 运行 setup_windows.ps1 自动完成全部配置 |
-| 📥 **自动下载** | Python 环境 + pip 依赖 + AI 模型（~700MB）全自动下载 |
-| 🎯 **开箱即用** | 安装完成后双击「启动我的AI影音工具百宝箱.cmd」即可使用 |
 
 **Windows 全量版（含运行环境 + 全部模型，解压即用）：**
 - ☁️ 百度网盘：[下载 MyvideoTools.rar](https://pan.baidu.com/s/1MEeQeiTiXTVd_Z5AMTKgdg?pwd=32as)（提取码: `32as`）
